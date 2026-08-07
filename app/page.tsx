@@ -17,6 +17,7 @@ import {
   Search,
   Settings,
   ShieldCheck,
+  type LucideIcon,
   Truck,
   Users,
   X
@@ -85,6 +86,29 @@ type ReconcileFormItem = {
 type NavRole = "OWNER" | "ADMIN" | "WAREHOUSE_MANAGER" | "SALESPERSON" | "DRIVER" | "ACCOUNTANT";
 
 type ProductFormMode = "edit" | "create";
+type NavSection = "dashboard" | "inventory" | "customers" | "deliveries" | "payments" | "reports" | "settings";
+
+type NavItemConfig = {
+  key: NavSection;
+  labelKey: TranslationKey;
+  icon: LucideIcon;
+  roles: NavRole[];
+};
+
+const navItemConfig: NavItemConfig[] = [
+  {
+    key: "dashboard",
+    labelKey: "dashboard",
+    icon: Gauge,
+    roles: ["OWNER", "ADMIN", "WAREHOUSE_MANAGER", "SALESPERSON", "DRIVER", "ACCOUNTANT"]
+  },
+  { key: "inventory", labelKey: "inventory", icon: Boxes, roles: ["OWNER", "ADMIN", "WAREHOUSE_MANAGER"] },
+  { key: "customers", labelKey: "customers", icon: Users, roles: ["OWNER", "ADMIN", "SALESPERSON", "ACCOUNTANT"] },
+  { key: "deliveries", labelKey: "deliveries", icon: Truck, roles: ["OWNER", "ADMIN", "WAREHOUSE_MANAGER", "DRIVER"] },
+  { key: "payments", labelKey: "payments", icon: Banknote, roles: ["OWNER", "ADMIN", "SALESPERSON", "ACCOUNTANT"] },
+  { key: "reports", labelKey: "reports", icon: FileBarChart, roles: ["OWNER", "ACCOUNTANT"] },
+  { key: "settings", labelKey: "settings", icon: Settings, roles: ["OWNER", "ADMIN"] }
+];
 
 const currencyFormatter = new Intl.NumberFormat("en-RW", {
   style: "currency",
@@ -270,6 +294,7 @@ export default function Home() {
   const [productFormMode, setProductFormMode] = useState<ProductFormMode>("edit");
   const [apiStatus, setApiStatus] = useState<"mock" | "connected">("mock");
   const [isLiveDataLoading, setIsLiveDataLoading] = useState(false);
+  const [activeSection, setActiveSection] = useState<NavSection>("dashboard");
   const [activeAction, setActiveAction] = useState<ActionType>(null);
   const [actionError, setActionError] = useState<string | null>(null);
   const [actionNotice, setActionNotice] = useState<string | null>(null);
@@ -467,15 +492,19 @@ export default function Home() {
     return { stockValue, cashCollected, creditExposure, emptyLiability, activeDeliveries, lowStock };
   }, [displayedCustomers, displayedDeliveries, displayedProducts, ownerDashboard]);
 
-  const navItems = [
-    { label: t("dashboard"), icon: Gauge, roles: ["OWNER", "ADMIN", "WAREHOUSE_MANAGER", "SALESPERSON", "DRIVER", "ACCOUNTANT"] as NavRole[] },
-    { label: t("inventory"), icon: Boxes, roles: ["OWNER", "ADMIN", "WAREHOUSE_MANAGER"] as NavRole[] },
-    { label: t("customers"), icon: Users, roles: ["OWNER", "ADMIN", "SALESPERSON", "ACCOUNTANT"] as NavRole[] },
-    { label: t("deliveries"), icon: Truck, roles: ["OWNER", "ADMIN", "WAREHOUSE_MANAGER", "DRIVER"] as NavRole[] },
-    { label: t("payments"), icon: Banknote, roles: ["OWNER", "ADMIN", "SALESPERSON", "ACCOUNTANT"] as NavRole[] },
-    { label: t("reports"), icon: FileBarChart, roles: ["OWNER", "ACCOUNTANT"] as NavRole[] },
-    { label: t("settings"), icon: Settings, roles: ["OWNER", "ADMIN"] as NavRole[] }
-  ].filter((item) => !user?.role || item.roles.includes(user.role as NavRole));
+  const navItems = useMemo(() => {
+    return navItemConfig
+      .filter((item) => {
+        if (!user?.role) return item.key === "dashboard";
+        return item.roles.includes(user.role as NavRole);
+      })
+      .map((item) => ({
+        ...item,
+        label: dictionary[locale][item.labelKey]
+      }));
+  }, [locale, user?.role]);
+
+  const activeNavItem = navItems.find((item) => item.key === activeSection) ?? navItems[0];
 
   const kpis = [
     { label: t("stockValue"), value: money(metrics.stockValue), icon: Boxes },
@@ -502,6 +531,11 @@ export default function Home() {
       role: assignableRoles.some((role) => role.name === current.role) ? current.role : assignableRoles[0].name
     }));
   }, [assignableRoles]);
+
+  useEffect(() => {
+    if (navItems.some((item) => item.key === activeSection)) return;
+    setActiveSection(navItems[0]?.key ?? "dashboard");
+  }, [activeSection, navItems]);
 
   useEffect(() => {
     if (apiUsers.length === 0) return;
@@ -893,8 +927,13 @@ export default function Home() {
         </div>
 
         <nav className="nav" aria-label="Primary">
-          {navItems.map((item, index) => (
-            <button className={`nav-button ${index === 0 ? "active" : ""}`} key={item.label} type="button">
+          {navItems.map((item) => (
+            <button
+              className={`nav-button ${activeSection === item.key ? "active" : ""}`}
+              key={item.key}
+              onClick={() => setActiveSection(item.key)}
+              type="button"
+            >
               <item.icon size={18} aria-hidden="true" />
               <span>{item.label}</span>
             </button>
@@ -985,7 +1024,7 @@ export default function Home() {
             <>
               <div className="page-heading">
                 <div>
-                  <h2>{t("ownerCommand")}</h2>
+                  <h2>{activeSection === "dashboard" ? t("ownerCommand") : activeNavItem?.label}</h2>
                   <p>
                     {t("overview")}. {t("systemScope")}
                   </p>
@@ -998,20 +1037,23 @@ export default function Home() {
                 </div>
               </div>
 
-              <section className="kpi-grid" aria-label="Business metrics">
-                {kpis.map((kpi) => (
-                  <article className="kpi-card" key={kpi.label}>
-                    <div className="icon">
-                      <kpi.icon size={19} aria-hidden="true" />
-                    </div>
-                    <div>
-                      <p>{kpi.label}</p>
-                      <strong>{kpi.value}</strong>
-                    </div>
-                  </article>
-                ))}
-              </section>
+              {activeSection === "dashboard" || activeSection === "reports" ? (
+                <section className="kpi-grid" aria-label="Business metrics">
+                  {kpis.map((kpi) => (
+                    <article className="kpi-card" key={kpi.label}>
+                      <div className="icon">
+                        <kpi.icon size={19} aria-hidden="true" />
+                      </div>
+                      <div>
+                        <p>{kpi.label}</p>
+                        <strong>{kpi.value}</strong>
+                      </div>
+                    </article>
+                  ))}
+                </section>
+              ) : null}
 
+              {activeSection === "dashboard" || activeSection === "inventory" ? (
               <section className="section-grid">
                 <article className="panel">
                   <div className="panel-header">
@@ -1132,8 +1174,9 @@ export default function Home() {
                   </article>
                 </aside>
               </section>
+              ) : null}
 
-              {isAccountAdmin ? (
+              {activeSection === "inventory" && isAccountAdmin ? (
                 <article className="panel">
                   <div className="panel-header">
                     <div>
@@ -1380,7 +1423,9 @@ export default function Home() {
                 </article>
               ) : null}
 
+              {activeSection === "dashboard" || activeSection === "customers" || activeSection === "deliveries" ? (
               <section className="two-column">
+                {activeSection === "dashboard" || activeSection === "customers" ? (
                 <article className="panel">
                   <div className="panel-header">
                     <h3>{t("customers")}</h3>
@@ -1421,7 +1466,9 @@ export default function Home() {
                     </table>
                   </div>
                 </article>
+                ) : null}
 
+                {activeSection === "dashboard" || activeSection === "deliveries" ? (
                 <article className="panel">
                   <div className="panel-header">
                     <h3>{t("deliveries")}</h3>
@@ -1464,8 +1511,11 @@ export default function Home() {
                     </table>
                   </div>
                 </article>
+                ) : null}
               </section>
+              ) : null}
 
+              {activeSection === "dashboard" || activeSection === "payments" ? (
               <article className="panel">
                 <div className="panel-header">
                   <h3>{t("payments")}</h3>
@@ -1503,7 +1553,9 @@ export default function Home() {
                   </table>
                 </div>
               </article>
+              ) : null}
 
+              {activeSection === "settings" ? (
               <section className="two-column">
                 {isAccountAdmin ? (
                   <article className="panel">
@@ -1716,8 +1768,9 @@ export default function Home() {
                   </div>
                 </article>
               </section>
+              ) : null}
 
-              {user?.role === "OWNER" ? (
+              {activeSection === "reports" && user?.role === "OWNER" ? (
                 <article className="panel">
               <div className="panel-header">
                 <div>

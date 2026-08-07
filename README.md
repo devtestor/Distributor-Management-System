@@ -97,6 +97,7 @@ npm run prisma:generate
 - [Implementation plan](docs/implementation-plan.md)
 - [Backend API status](docs/backend-api.md)
 - [Architecture notes](docs/architecture.md)
+- [Deployment notes](docs/deployment.md)
 - [Database schema notes](docs/database-schema.sql)
 
 ## License

@@ -345,14 +345,18 @@ Acceptance criteria:
 4. `GET /dashboard/owner`
 5. `GET /products`
 6. `POST /products`
-7. `GET /warehouses/:id/stock`
-8. `POST /stock/receive`
-9. `POST /stock/adjust`
-10. `GET /customers`
-11. `POST /customers`
-12. `GET /customers/:id/balance`
-13. `POST /orders`
-14. `POST /invoices`
+7. `GET /warehouses`
+8. `GET /warehouses/:id/stock`
+9. `GET /stock/movements`
+10. `POST /stock/receive`
+11. `POST /stock/adjust`
+12. `POST /stock/transfer`
+13. `POST /stock/count`
+14. `GET /customers`
+15. `POST /customers`
+16. `GET /customers/:id/balance`
+17. `POST /orders`
+18. `POST /invoices`
 15. `POST /payments`
 16. `POST /deliveries/trips`
 17. `POST /deliveries/trips/:id/load`
@@ -475,6 +479,8 @@ Deliverables:
 - BRALIRWA stock receiving
 - Stock adjustments
 - Stock movement ledger
+- Warehouse transfers
+- Physical stock counts
 - Low-stock alerts
 
 Acceptance criteria:
@@ -482,12 +488,20 @@ Acceptance criteria:
 - Stock balance updates from movements.
 - Owner can see low-stock and stock value.
 - Warehouse manager can receive and adjust stock.
+- Stock cannot go negative unless owner/admin explicitly authorizes it.
+- Warehouse transfers create paired ledger records.
+- Physical stock counts store a count adjustment record.
 
 Current status:
 
 - Product list/create endpoints have been added.
+- Warehouse list endpoint has been added.
 - Warehouse stock endpoint has been added.
 - Stock receive and stock adjust endpoints have been added.
+- Stock movement ledger endpoint has been added.
+- Stock transfer endpoint has been added.
+- Physical stock count endpoint has been added.
+- Negative-stock authorization has been added for owner/admin.
 - Stock balances are derived from movement records.
 
 ## Milestone 5: Customers, Sales, and Payments

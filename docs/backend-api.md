@@ -64,9 +64,13 @@ Authenticated:
 - `GET /api/customers`
 - `POST /api/customers`
 - `GET /api/customers/:id/balance`
+- `GET /api/warehouses`
 - `GET /api/warehouses/:id/stock`
+- `GET /api/stock/movements`
 - `POST /api/stock/receive`
 - `POST /api/stock/adjust`
+- `POST /api/stock/transfer`
+- `POST /api/stock/count`
 - `GET /api/invoices`
 - `GET /api/invoices/:id`
 - `POST /api/invoices`
@@ -86,7 +90,9 @@ Authenticated:
 - Customer balance is derived from invoices minus payments.
 - Empty container balance is derived from empty container movements.
 - Warehouse stock is derived from stock movements.
-- Stock movements cannot make inventory negative.
+- Stock movements cannot make inventory negative unless an owner/admin explicitly authorizes the movement.
+- Warehouse transfers create paired outbound/inbound stock movement records with one reference ID.
+- Physical stock counts are stored as count adjustment movement records.
 - Delivery trip reconciliation requires delivered plus returned plus damaged quantities to equal loaded quantity.
 
 ## Frontend Integration

@@ -1,5 +1,5 @@
 import { StockMovementType } from "@prisma/client";
-import { IsEnum, IsInt, IsOptional, IsString, Min } from "class-validator";
+import { IsBoolean, IsEnum, IsInt, IsOptional, IsString, Min } from "class-validator";
 
 export class StockMovementDto {
   @IsString()
@@ -18,4 +18,8 @@ export class StockMovementDto {
   @IsString()
   @IsOptional()
   note?: string;
+
+  @IsBoolean()
+  @IsOptional()
+  allowNegative?: boolean;
 }
