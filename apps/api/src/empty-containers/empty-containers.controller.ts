@@ -1,5 +1,5 @@
 import { Body, Controller, Get, Param, Post, Req } from "@nestjs/common";
-import { AuthenticatedRequest } from "../common/authenticated-request";
+import type { AuthenticatedRequest } from "../common/authenticated-request";
 import { Roles } from "../common/roles.decorator";
 import { CreateEmptyContainerMovementDto } from "./dto/create-empty-container-movement.dto";
 import { EmptyContainersService } from "./empty-containers.service";

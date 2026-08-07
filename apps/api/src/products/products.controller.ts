@@ -1,5 +1,5 @@
 import { Body, Controller, Get, Param, Patch, Post, Req } from "@nestjs/common";
-import { AuthenticatedRequest } from "../common/authenticated-request";
+import type { AuthenticatedRequest } from "../common/authenticated-request";
 import { Roles } from "../common/roles.decorator";
 import { CreateProductDto } from "./dto/create-product.dto";
 import { UpdateProductDto } from "./dto/update-product.dto";

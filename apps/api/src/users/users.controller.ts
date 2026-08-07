@@ -1,5 +1,5 @@
 import { Body, Controller, Get, Param, Patch, Post, Req } from "@nestjs/common";
-import { AuthenticatedRequest } from "../common/authenticated-request";
+import type { AuthenticatedRequest } from "../common/authenticated-request";
 import { Roles } from "../common/roles.decorator";
 import { ChangePasswordDto } from "./dto/change-password.dto";
 import { CreateUserDto } from "./dto/create-user.dto";

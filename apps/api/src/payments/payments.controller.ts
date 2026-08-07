@@ -1,5 +1,5 @@
 import { Body, Controller, Get, Post, Req } from "@nestjs/common";
-import { AuthenticatedRequest } from "../common/authenticated-request";
+import type { AuthenticatedRequest } from "../common/authenticated-request";
 import { Roles } from "../common/roles.decorator";
 import { CreatePaymentDto } from "./dto/create-payment.dto";
 import { PaymentsService } from "./payments.service";

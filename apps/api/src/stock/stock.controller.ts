@@ -1,5 +1,5 @@
 import { Body, Controller, Get, Param, Post, Req } from "@nestjs/common";
-import { AuthenticatedRequest } from "../common/authenticated-request";
+import type { AuthenticatedRequest } from "../common/authenticated-request";
 import { Roles } from "../common/roles.decorator";
 import { StockCountDto } from "./dto/stock-count.dto";
 import { StockMovementDto } from "./dto/stock-movement.dto";
