@@ -1,0 +1,493 @@
+export type ApiUser = {
+  id: string;
+  fullName: string;
+  email: string | null;
+  phone?: string | null;
+  role: string;
+  preferredLocale: string;
+  isActive?: boolean;
+  createdAt?: string;
+};
+
+export type ApiRole = {
+  id: string;
+  name: string;
+  description: string | null;
+  createdAt: string;
+};
+
+export type ApiAuditLog = {
+  id: string;
+  action: string;
+  entity: string;
+  entityId: string | null;
+  metadata: Record<string, unknown> | null;
+  createdAt: string;
+  user: {
+    id: string;
+    fullName: string;
+    email: string | null;
+    role: {
+      name: string;
+    };
+  } | null;
+};
+
+export type LoginResponse = {
+  accessToken: string;
+  user: ApiUser;
+};
+
+export type OwnerDashboardResponse = {
+  generatedAt: string;
+  totals: {
+    stockValue: number;
+    sales: number;
+    payments: number;
+    creditExposure: number;
+    activeCustomers: number;
+    emptyContainerExposure: number;
+    activeDeliveries: number;
+    lowStockProducts: number;
+  };
+  lowStock: Array<{
+    id: string;
+    sku: string;
+    name: string;
+    quantity: number;
+    reorderLevel: number;
+    stockValue: number;
+    needsReorder: boolean;
+  }>;
+};
+
+export type ApiProduct = {
+  id: string;
+  sku: string;
+  name: string;
+  brand: string;
+  category: string;
+  packageType: string;
+  unitSize: string;
+  unitCost: number | string;
+  unitPrice: number | string;
+  reorderLevel: number;
+  tracksEmpties: boolean;
+  isActive: boolean;
+  createdAt: string;
+};
+
+export type ApiProductPriceHistory = {
+  id: string;
+  productId: string;
+  previousCost: number | string | null;
+  newCost: number | string;
+  previousPrice: number | string | null;
+  newPrice: number | string;
+  changeReason: string | null;
+  createdAt: string;
+  changedBy: {
+    id: string;
+    fullName: string;
+    email: string | null;
+    role: {
+      name: string;
+    };
+  } | null;
+};
+
+export type ApiWarehouseStockItem = {
+  id: string;
+  sku: string;
+  name: string;
+  brand: string;
+  unitSize: string;
+  reorderLevel: number;
+  unitCost: number | string;
+  unitPrice: number | string;
+  quantity: number;
+  needsReorder: boolean;
+};
+
+export type ApiCustomer = {
+  id: string;
+  name: string;
+  phone: string | null;
+  route: string | null;
+  location: string | null;
+  creditLimit: number | string;
+  isActive: boolean;
+  createdAt: string;
+};
+
+export type ApiCustomerBalance = {
+  customer: ApiCustomer;
+  outstanding: number;
+  emptyBalance: number;
+};
+
+export type ApiPayment = {
+  id: string;
+  customerId: string;
+  customer: {
+    id: string;
+    name: string;
+  };
+  method: string;
+  amount: number | string;
+  reference: string | null;
+  receivedAt: string;
+};
+
+export type ApiInvoice = {
+  id: string;
+  customerId: string;
+  invoiceNumber: string;
+  status: string;
+  paymentStatus: string;
+  totalAmount: number | string;
+  createdAt: string;
+  customer: {
+    id: string;
+    name: string;
+  };
+  items: Array<{
+    id: string;
+    quantity: number;
+    discountAmount: number | string;
+    lineTotal: number | string;
+    product: {
+      id: string;
+      name: string;
+      unitPrice: number | string;
+    };
+  }>;
+  payments: Array<{
+    id: string;
+    amount: number | string;
+  }>;
+};
+
+export type ApiDeliveryTrip = {
+  id: string;
+  route: string;
+  status: string;
+  cashCollected: number | string;
+  creditIssued: number | string;
+  createdAt: string;
+  loadedAt: string | null;
+  returnedAt: string | null;
+  driver: {
+    id: string;
+    fullName: string;
+  };
+  vehicle: {
+    id: string;
+    plateNumber: string;
+  };
+  items: Array<{
+    id: string;
+    loadedQuantity: number;
+    deliveredQuantity: number;
+    returnedQuantity: number;
+    damagedQuantity: number;
+    product: {
+      id: string;
+      name: string;
+      unitPrice: number | string;
+    };
+  }>;
+};
+
+const apiBaseUrl = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:4000/api";
+
+async function request<T>(path: string, options: RequestInit = {}) {
+  const response = await fetch(`${apiBaseUrl}${path}`, {
+    ...options,
+    headers: {
+      "Content-Type": "application/json",
+      ...options.headers
+    }
+  });
+
+  if (!response.ok) {
+    const body = await response.json().catch(() => ({ message: "Request failed" }));
+    throw new Error(Array.isArray(body.message) ? body.message.join(", ") : body.message ?? "Request failed");
+  }
+
+  return response.json() as Promise<T>;
+}
+
+export function login(email: string, password: string) {
+  return request<LoginResponse>("/auth/login", {
+    method: "POST",
+    body: JSON.stringify({ email, password })
+  });
+}
+
+export function getOwnerDashboard(accessToken: string) {
+  return request<OwnerDashboardResponse>("/dashboard/owner", {
+    headers: {
+      Authorization: `Bearer ${accessToken}`
+    }
+  });
+}
+
+export function getMe(accessToken: string) {
+  return request<ApiUser>("/me", {
+    headers: authHeaders(accessToken)
+  });
+}
+
+function authHeaders(accessToken: string) {
+  return {
+    Authorization: `Bearer ${accessToken}`
+  };
+}
+
+export function getProducts(accessToken: string) {
+  return request<ApiProduct[]>("/products", {
+    headers: authHeaders(accessToken)
+  });
+}
+
+export function createProduct(
+  accessToken: string,
+  payload: {
+    sku: string;
+    name: string;
+    brand: string;
+    category: string;
+    packageType: string;
+    unitSize: string;
+    unitCost: number;
+    unitPrice: number;
+    reorderLevel: number;
+    tracksEmpties?: boolean;
+  }
+) {
+  return request<ApiProduct>("/products", {
+    method: "POST",
+    headers: authHeaders(accessToken),
+    body: JSON.stringify(payload)
+  });
+}
+
+export function updateProduct(
+  accessToken: string,
+  productId: string,
+  payload: {
+    sku?: string;
+    name?: string;
+    brand?: string;
+    category?: string;
+    packageType?: string;
+    unitSize?: string;
+    unitCost?: number;
+    unitPrice?: number;
+    reorderLevel?: number;
+    tracksEmpties?: boolean;
+    isActive?: boolean;
+    priceChangeReason?: string;
+  }
+) {
+  return request<ApiProduct>(`/products/${productId}`, {
+    method: "PATCH",
+    headers: authHeaders(accessToken),
+    body: JSON.stringify(payload)
+  });
+}
+
+export function getProductPriceHistory(accessToken: string, productId: string) {
+  return request<ApiProductPriceHistory[]>(`/products/${productId}/price-history`, {
+    headers: authHeaders(accessToken)
+  });
+}
+
+export function getWarehouseStock(accessToken: string, warehouseId: string) {
+  return request<ApiWarehouseStockItem[]>(`/warehouses/${warehouseId}/stock`, {
+    headers: authHeaders(accessToken)
+  });
+}
+
+export function getCustomers(accessToken: string) {
+  return request<ApiCustomer[]>("/customers", {
+    headers: authHeaders(accessToken)
+  });
+}
+
+export function getCustomerBalance(accessToken: string, customerId: string) {
+  return request<ApiCustomerBalance>(`/customers/${customerId}/balance`, {
+    headers: authHeaders(accessToken)
+  });
+}
+
+export function getPayments(accessToken: string) {
+  return request<ApiPayment[]>("/payments", {
+    headers: authHeaders(accessToken)
+  });
+}
+
+export function getInvoices(accessToken: string) {
+  return request<ApiInvoice[]>("/invoices", {
+    headers: authHeaders(accessToken)
+  });
+}
+
+export function getDeliveryTrips(accessToken: string) {
+  return request<ApiDeliveryTrip[]>("/deliveries/trips", {
+    headers: authHeaders(accessToken)
+  });
+}
+
+export function getUsers(accessToken: string) {
+  return request<ApiUser[]>("/users", {
+    headers: authHeaders(accessToken)
+  });
+}
+
+export function getRoles(accessToken: string) {
+  return request<ApiRole[]>("/users/roles", {
+    headers: authHeaders(accessToken)
+  });
+}
+
+export function getAuditLogs(accessToken: string) {
+  return request<ApiAuditLog[]>("/audit-logs", {
+    headers: authHeaders(accessToken)
+  });
+}
+
+export function receiveStock(
+  accessToken: string,
+  payload: {
+    productId: string;
+    warehouseId: string;
+    movementType: "PURCHASE_RECEIPT";
+    quantity: number;
+    note?: string;
+  }
+) {
+  return request("/stock/receive", {
+    method: "POST",
+    headers: authHeaders(accessToken),
+    body: JSON.stringify(payload)
+  });
+}
+
+export function createInvoice(
+  accessToken: string,
+  payload: {
+    customerId: string;
+    items: Array<{
+      productId: string;
+      quantity: number;
+      discountAmount?: number;
+    }>;
+    initialPaymentMethod?: "CASH" | "BANK" | "MOBILE_MONEY" | "CREDIT";
+    initialPaymentAmount?: number;
+    paymentReference?: string;
+  }
+) {
+  return request("/invoices", {
+    method: "POST",
+    headers: authHeaders(accessToken),
+    body: JSON.stringify(payload)
+  });
+}
+
+export function recordPayment(
+  accessToken: string,
+  payload: {
+    customerId: string;
+    invoiceId?: string;
+    method: "CASH" | "BANK" | "MOBILE_MONEY" | "CREDIT";
+    amount: number;
+    reference?: string;
+  }
+) {
+  return request("/payments", {
+    method: "POST",
+    headers: authHeaders(accessToken),
+    body: JSON.stringify(payload)
+  });
+}
+
+export function reconcileDeliveryTrip(
+  accessToken: string,
+  tripId: string,
+  payload: {
+    cashCollected: number;
+    creditIssued: number;
+    items: Array<{
+      itemId: string;
+      deliveredQuantity: number;
+      returnedQuantity: number;
+      damagedQuantity: number;
+    }>;
+  }
+) {
+  return request(`/deliveries/trips/${tripId}/reconcile`, {
+    method: "POST",
+    headers: authHeaders(accessToken),
+    body: JSON.stringify(payload)
+  });
+}
+
+export function createUser(
+  accessToken: string,
+  payload: {
+    fullName: string;
+    email: string;
+    phone?: string;
+    role: string;
+    preferredLocale: "en" | "fr" | "rw" | "sw";
+    password: string;
+  }
+) {
+  return request<ApiUser>("/users", {
+    method: "POST",
+    headers: authHeaders(accessToken),
+    body: JSON.stringify(payload)
+  });
+}
+
+export function updateUser(
+  accessToken: string,
+  userId: string,
+  payload: {
+    fullName?: string;
+    phone?: string;
+    role?: string;
+    preferredLocale?: "en" | "fr" | "rw" | "sw";
+    isActive?: boolean;
+  }
+) {
+  return request<ApiUser>(`/users/${userId}`, {
+    method: "PATCH",
+    headers: authHeaders(accessToken),
+    body: JSON.stringify(payload)
+  });
+}
+
+export function resetUserPassword(accessToken: string, userId: string, newPassword: string) {
+  return request<{ id: string; resetById: string }>(`/users/${userId}/reset-password`, {
+    method: "POST",
+    headers: authHeaders(accessToken),
+    body: JSON.stringify({ newPassword })
+  });
+}
+
+export function changeMyPassword(
+  accessToken: string,
+  payload: {
+    currentPassword: string;
+    newPassword: string;
+  }
+) {
+  return request<{ id: string; message: string }>("/me/change-password", {
+    method: "POST",
+    headers: authHeaders(accessToken),
+    body: JSON.stringify(payload)
+  });
+}

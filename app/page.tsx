@@ -1,0 +1,2219 @@
+"use client";
+
+import {
+  AlertTriangle,
+  Banknote,
+  Boxes,
+  CalendarDays,
+  ClipboardCheck,
+  CreditCard,
+  FileBarChart,
+  Gauge,
+  Languages,
+  PackagePlus,
+  ReceiptText,
+  RotateCcw,
+  Route,
+  Search,
+  Settings,
+  ShieldCheck,
+  Truck,
+  Users,
+  X
+} from "lucide-react";
+import { FormEvent, useCallback, useEffect, useMemo, useState } from "react";
+import {
+  ApiAuditLog,
+  ApiCustomer,
+  ApiDeliveryTrip,
+  ApiInvoice,
+  ApiPayment,
+  ApiProduct,
+  ApiProductPriceHistory,
+  ApiRole,
+  ApiUser,
+  ApiWarehouseStockItem,
+  changeMyPassword,
+  createProduct,
+  createInvoice,
+  createUser,
+  getProductPriceHistory,
+  getCustomerBalance,
+  getCustomers,
+  getDeliveryTrips,
+  getAuditLogs,
+  getInvoices,
+  getMe,
+  getOwnerDashboard,
+  getPayments,
+  getProducts,
+  getRoles,
+  getUsers,
+  getWarehouseStock,
+  login,
+  OwnerDashboardResponse,
+  receiveStock,
+  reconcileDeliveryTrip,
+  resetUserPassword,
+  recordPayment,
+  updateProduct,
+  updateUser
+} from "@/lib/api";
+import { dictionary, locales, TranslationKey } from "@/lib/i18n";
+import { customers, deliveries, payments, products } from "@/lib/mock-data";
+import { Customer, Delivery, Locale, Payment, Product } from "@/lib/types";
+
+const MAIN_WAREHOUSE_ID = "00000000-0000-0000-0000-000000000001";
+
+type ActionType = "stock" | "invoice" | "reconcile" | "payment" | null;
+
+type InvoiceFormItem = {
+  productId: string;
+  quantity: number;
+  discountAmount: number;
+};
+
+type ReconcileFormItem = {
+  itemId: string;
+  productName: string;
+  loadedQuantity: number;
+  deliveredQuantity: number;
+  returnedQuantity: number;
+  damagedQuantity: number;
+};
+
+type NavRole = "OWNER" | "ADMIN" | "WAREHOUSE_MANAGER" | "SALESPERSON" | "DRIVER" | "ACCOUNTANT";
+
+type ProductFormMode = "edit" | "create";
+
+const currencyFormatter = new Intl.NumberFormat("en-RW", {
+  style: "currency",
+  currency: "RWF",
+  maximumFractionDigits: 0
+});
+
+function money(value: number) {
+  return currencyFormatter.format(value);
+}
+
+function formatToday(locale: Locale) {
+  const localeMap: Record<Locale, string> = {
+    en: "en-RW",
+    fr: "fr-RW",
+    rw: "rw-RW",
+    sw: "sw-RW"
+  };
+
+  return new Intl.DateTimeFormat(localeMap[locale], {
+    day: "2-digit",
+    month: "short",
+    year: "numeric"
+  }).format(new Date());
+}
+
+function titleCaseEnum(value: string) {
+  return value
+    .toLowerCase()
+    .split("_")
+    .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
+    .join(" ");
+}
+
+function asNumber(value: number | string) {
+  return typeof value === "number" ? value : Number(value);
+}
+
+function getProductStatus(product: Product) {
+  if (product.stockUnits < product.reorderLevel) return "danger";
+  if (product.stockUnits < product.reorderLevel * 1.25) return "warn";
+  return "good";
+}
+
+function normalizeCategory(category: string): Product["category"] {
+  const label = titleCaseEnum(category);
+  if (label === "Beer" || label === "Water") return label;
+  return "Soft drink";
+}
+
+function normalizePackageType(packageType: string): Product["packageType"] {
+  const label = titleCaseEnum(packageType);
+  if (label === "Bottle Crate") return "Bottle crate";
+  if (label === "Can Tray") return "Can tray";
+  return "PET pack";
+}
+
+function normalizeDeliveryStatus(status: string): Delivery["status"] {
+  if (status === "LOADING") return "Loading";
+  if (status === "ON_ROUTE") return "On route";
+  return "Reconciliation";
+}
+
+function normalizePaymentMethod(method: string): Payment["method"] {
+  if (method === "MOBILE_MONEY") return "Mobile Money";
+  if (method === "BANK") return "Bank";
+  if (method === "CREDIT") return "Credit";
+  return "Cash";
+}
+
+function mapLiveProduct(stockItem: ApiWarehouseStockItem, product: ApiProduct | undefined): Product {
+  return {
+    id: stockItem.id,
+    sku: stockItem.sku,
+    name: stockItem.name,
+    brand: stockItem.brand,
+    category: normalizeCategory(product?.category ?? "SOFT_DRINK"),
+    packageType: normalizePackageType(product?.packageType ?? "PET_PACK"),
+    unitSize: stockItem.unitSize,
+    stockUnits: stockItem.quantity,
+    reorderLevel: stockItem.reorderLevel,
+    unitCost: asNumber(stockItem.unitCost),
+    unitPrice: asNumber(stockItem.unitPrice),
+    emptiesOwed: product?.tracksEmpties ? stockItem.quantity : 0
+  };
+}
+
+function mapLiveDelivery(trip: ApiDeliveryTrip): Delivery {
+  const loadedValue = trip.items.reduce((sum, item) => sum + item.loadedQuantity * asNumber(item.product.unitPrice), 0);
+  const deliveredValue = trip.items.reduce(
+    (sum, item) => sum + item.deliveredQuantity * asNumber(item.product.unitPrice),
+    0
+  );
+  const returnedCount = trip.items.reduce((sum, item) => sum + item.returnedQuantity, 0);
+
+  return {
+    id: trip.id,
+    driver: trip.driver.fullName,
+    route: trip.route,
+    truck: trip.vehicle.plateNumber,
+    loadedValue,
+    deliveredValue,
+    cashCollected: asNumber(trip.cashCollected),
+    creditIssued: asNumber(trip.creditIssued),
+    emptiesReturned: returnedCount,
+    status: normalizeDeliveryStatus(trip.status)
+  };
+}
+
+function mapLivePayment(payment: ApiPayment): Payment {
+  return {
+    id: payment.id,
+    customer: payment.customer.name,
+    method: normalizePaymentMethod(payment.method),
+    amount: asNumber(payment.amount),
+    reference: payment.reference ?? "-",
+    recordedAt: new Date(payment.receivedAt).toLocaleTimeString("en-RW", {
+      hour: "2-digit",
+      minute: "2-digit"
+    })
+  };
+}
+
+function emptyInvoiceItem(productId = ""): InvoiceFormItem {
+  return {
+    productId,
+    quantity: 1,
+    discountAmount: 0
+  };
+}
+
+function emptyProductForm() {
+  return {
+    productId: "",
+    sku: "",
+    name: "",
+    brand: "BRALIRWA",
+    category: "BEER",
+    packageType: "BOTTLE_CRATE",
+    unitSize: "",
+    unitCost: 0,
+    unitPrice: 0,
+    reorderLevel: 0,
+    tracksEmpties: true,
+    priceChangeReason: ""
+  };
+}
+
+function buildReconcileItems(trip: ApiDeliveryTrip | undefined): ReconcileFormItem[] {
+  if (!trip) return [];
+
+  return trip.items.map((item) => ({
+    itemId: item.id,
+    productName: item.product.name,
+    loadedQuantity: item.loadedQuantity,
+    deliveredQuantity: item.deliveredQuantity,
+    returnedQuantity: item.returnedQuantity,
+    damagedQuantity: item.damagedQuantity
+  }));
+}
+
+export default function Home() {
+  const [locale, setLocale] = useState<Locale>("en");
+  const [accessToken, setAccessToken] = useState<string | null>(null);
+  const [user, setUser] = useState<ApiUser | null>(null);
+  const [email, setEmail] = useState("owner@example.com");
+  const [password, setPassword] = useState("ChangeMe123!");
+  const [authError, setAuthError] = useState<string | null>(null);
+  const [isLoggingIn, setIsLoggingIn] = useState(false);
+  const [ownerDashboard, setOwnerDashboard] = useState<OwnerDashboardResponse | null>(null);
+  const [liveProducts, setLiveProducts] = useState<Product[]>([]);
+  const [liveCustomers, setLiveCustomers] = useState<Customer[]>([]);
+  const [liveDeliveries, setLiveDeliveries] = useState<Delivery[]>([]);
+  const [livePayments, setLivePayments] = useState<Payment[]>([]);
+  const [apiProducts, setApiProducts] = useState<ApiProduct[]>([]);
+  const [apiCustomers, setApiCustomers] = useState<ApiCustomer[]>([]);
+  const [apiTrips, setApiTrips] = useState<ApiDeliveryTrip[]>([]);
+  const [apiInvoices, setApiInvoices] = useState<ApiInvoice[]>([]);
+  const [apiUsers, setApiUsers] = useState<ApiUser[]>([]);
+  const [apiRoles, setApiRoles] = useState<ApiRole[]>([]);
+  const [apiAuditLogs, setApiAuditLogs] = useState<ApiAuditLog[]>([]);
+  const [productPriceHistory, setProductPriceHistory] = useState<ApiProductPriceHistory[]>([]);
+  const [productFormMode, setProductFormMode] = useState<ProductFormMode>("edit");
+  const [apiStatus, setApiStatus] = useState<"mock" | "connected">("mock");
+  const [isLiveDataLoading, setIsLiveDataLoading] = useState(false);
+  const [activeAction, setActiveAction] = useState<ActionType>(null);
+  const [actionError, setActionError] = useState<string | null>(null);
+  const [actionNotice, setActionNotice] = useState<string | null>(null);
+  const [isActionSubmitting, setIsActionSubmitting] = useState(false);
+  const [stockForm, setStockForm] = useState({
+    productId: "",
+    quantity: 1,
+    note: ""
+  });
+  const [invoiceForm, setInvoiceForm] = useState({
+    customerId: "",
+    items: [emptyInvoiceItem()],
+    initialPaymentMethod: "CASH" as "CASH" | "BANK" | "MOBILE_MONEY" | "CREDIT",
+    initialPaymentAmount: 0,
+    paymentReference: ""
+  });
+  const [paymentForm, setPaymentForm] = useState({
+    customerId: "",
+    invoiceId: "",
+    method: "CASH" as "CASH" | "BANK" | "MOBILE_MONEY" | "CREDIT",
+    amount: 0,
+    reference: ""
+  });
+  const [reconcileForm, setReconcileForm] = useState({
+    tripId: "",
+    cashCollected: 0,
+    creditIssued: 0,
+    items: [] as ReconcileFormItem[]
+  });
+  const [accountForm, setAccountForm] = useState({
+    fullName: "",
+    email: "",
+    phone: "",
+    role: "OWNER",
+    preferredLocale: "en" as Locale,
+    password: ""
+  });
+  const [passwordForm, setPasswordForm] = useState({
+    currentPassword: "",
+    newPassword: ""
+  });
+  const [resetPasswordForm, setResetPasswordForm] = useState({
+    userId: "",
+    newPassword: ""
+  });
+  const [productForm, setProductForm] = useState(emptyProductForm);
+  const t = (key: TranslationKey) => dictionary[locale][key];
+  const isAccountAdmin = user?.role === "OWNER" || user?.role === "ADMIN";
+  const isAuthenticated = Boolean(user && accessToken && apiStatus === "connected");
+
+  const clearLiveState = useCallback(() => {
+    setOwnerDashboard(null);
+    setLiveProducts([]);
+    setLiveCustomers([]);
+    setLiveDeliveries([]);
+    setLivePayments([]);
+    setApiProducts([]);
+    setApiCustomers([]);
+    setApiTrips([]);
+    setApiInvoices([]);
+    setApiUsers([]);
+    setApiRoles([]);
+    setApiAuditLogs([]);
+    setProductPriceHistory([]);
+  }, []);
+
+  const loadLiveData = useCallback(
+    async (token: string) => {
+      setIsLiveDataLoading(true);
+
+      try {
+        const [profile, dashboard, rawProducts, stockItems, rawCustomers, rawPayments, rawTrips, rawInvoices] = await Promise.all([
+          getMe(token),
+          getOwnerDashboard(token),
+          getProducts(token),
+          getWarehouseStock(token, MAIN_WAREHOUSE_ID),
+          getCustomers(token),
+          getPayments(token),
+          getDeliveryTrips(token),
+          getInvoices(token)
+        ]);
+
+        const canManageUsers = profile.role === "OWNER" || profile.role === "ADMIN";
+        const isOwner = profile.role === "OWNER";
+        const [rawUsers, rawRoles, rawAuditLogs] = await Promise.all([
+          canManageUsers ? getUsers(token) : Promise.resolve([]),
+          canManageUsers ? getRoles(token) : Promise.resolve([]),
+          isOwner ? getAuditLogs(token) : Promise.resolve([])
+        ]);
+
+        const balances = await Promise.all(
+          rawCustomers.map(async (customer) => {
+            const balance = await getCustomerBalance(token, customer.id);
+
+            return {
+              id: customer.id,
+              name: customer.name,
+              route: customer.route ?? "-",
+              phone: customer.phone ?? "-",
+              creditLimit: asNumber(customer.creditLimit),
+              outstanding: balance.outstanding,
+              emptiesBalance: balance.emptyBalance,
+              lastOrder: customer.createdAt
+            } satisfies Customer;
+          })
+        );
+
+        setOwnerDashboard(dashboard);
+        setUser(profile);
+        setApiProducts(rawProducts);
+        setApiCustomers(rawCustomers);
+        setApiTrips(rawTrips);
+        setApiInvoices(rawInvoices);
+        setApiUsers(rawUsers);
+        setApiRoles(rawRoles);
+        setApiAuditLogs(rawAuditLogs);
+        setLiveProducts(stockItems.map((item) => mapLiveProduct(item, rawProducts.find((product) => product.id === item.id))));
+        setLiveCustomers(balances);
+        setLivePayments(rawPayments.map(mapLivePayment));
+        setLiveDeliveries(rawTrips.map(mapLiveDelivery));
+        setApiStatus("connected");
+        window.localStorage.setItem("user", JSON.stringify(profile));
+        return profile;
+      } catch (error) {
+        clearLiveState();
+        setApiStatus("mock");
+        throw error;
+      } finally {
+        setIsLiveDataLoading(false);
+      }
+    },
+    [clearLiveState]
+  );
+
+  useEffect(() => {
+    const storedToken = window.localStorage.getItem("accessToken");
+    const storedUser = window.localStorage.getItem("user");
+    if (storedUser) {
+      try {
+        const parsedUser = JSON.parse(storedUser) as ApiUser;
+        setUser(parsedUser);
+        if (locales.some((entry) => entry.code === parsedUser.preferredLocale)) {
+          setLocale(parsedUser.preferredLocale as Locale);
+        }
+      } catch {
+        window.localStorage.removeItem("user");
+      }
+    }
+    if (storedToken) {
+      void loadLiveData(storedToken)
+        .then(() => {
+          setAccessToken(storedToken);
+        })
+        .catch((error) => {
+          setAccessToken(null);
+          setUser(null);
+          window.localStorage.removeItem("accessToken");
+          window.localStorage.removeItem("user");
+          setAuthError(error instanceof Error ? error.message : "Login failed");
+        });
+    }
+  }, [loadLiveData]);
+
+  const displayedProducts = liveProducts.length > 0 ? liveProducts : products;
+  const displayedCustomers = liveCustomers.length > 0 ? liveCustomers : customers;
+  const displayedDeliveries = liveDeliveries.length > 0 ? liveDeliveries : deliveries;
+  const displayedPayments = livePayments.length > 0 ? livePayments : payments;
+  const canUseLiveActions = Boolean(accessToken && apiStatus === "connected");
+  const assignableRoles = apiRoles.filter((role) => user?.role === "OWNER" || role.name !== "OWNER");
+  const openTrips = apiTrips.filter((trip) => trip.status !== "CLOSED");
+  const selectedTrip = apiTrips.find((trip) => trip.id === reconcileForm.tripId);
+  const payableInvoices = apiInvoices.filter(
+    (invoice) => invoice.customerId === paymentForm.customerId && invoice.paymentStatus !== "PAID"
+  );
+
+  const metrics = useMemo(() => {
+    if (ownerDashboard) {
+      return {
+        stockValue: ownerDashboard.totals.stockValue,
+        cashCollected: ownerDashboard.totals.payments,
+        creditExposure: ownerDashboard.totals.creditExposure,
+        emptyLiability: ownerDashboard.totals.emptyContainerExposure,
+        activeDeliveries: ownerDashboard.totals.activeDeliveries,
+        lowStock: ownerDashboard.totals.lowStockProducts
+      };
+    }
+
+    const stockValue = displayedProducts.reduce((sum, product) => sum + product.stockUnits * product.unitCost, 0);
+    const cashCollected = displayedDeliveries.reduce((sum, delivery) => sum + delivery.cashCollected, 0);
+    const creditExposure = displayedCustomers.reduce((sum, customer) => sum + customer.outstanding, 0);
+    const emptyLiability = displayedCustomers.reduce((sum, customer) => sum + customer.emptiesBalance, 0);
+    const activeDeliveries = displayedDeliveries.filter((delivery) => delivery.status !== "Reconciliation").length;
+    const lowStock = displayedProducts.filter((product) => product.stockUnits < product.reorderLevel).length;
+
+    return { stockValue, cashCollected, creditExposure, emptyLiability, activeDeliveries, lowStock };
+  }, [displayedCustomers, displayedDeliveries, displayedProducts, ownerDashboard]);
+
+  const navItems = [
+    { label: t("dashboard"), icon: Gauge, roles: ["OWNER", "ADMIN", "WAREHOUSE_MANAGER", "SALESPERSON", "DRIVER", "ACCOUNTANT"] as NavRole[] },
+    { label: t("inventory"), icon: Boxes, roles: ["OWNER", "ADMIN", "WAREHOUSE_MANAGER"] as NavRole[] },
+    { label: t("customers"), icon: Users, roles: ["OWNER", "ADMIN", "SALESPERSON", "ACCOUNTANT"] as NavRole[] },
+    { label: t("deliveries"), icon: Truck, roles: ["OWNER", "ADMIN", "WAREHOUSE_MANAGER", "DRIVER"] as NavRole[] },
+    { label: t("payments"), icon: Banknote, roles: ["OWNER", "ADMIN", "SALESPERSON", "ACCOUNTANT"] as NavRole[] },
+    { label: t("reports"), icon: FileBarChart, roles: ["OWNER", "ACCOUNTANT"] as NavRole[] },
+    { label: t("settings"), icon: Settings, roles: ["OWNER", "ADMIN"] as NavRole[] }
+  ].filter((item) => !user?.role || item.roles.includes(user.role as NavRole));
+
+  const kpis = [
+    { label: t("stockValue"), value: money(metrics.stockValue), icon: Boxes },
+    { label: t("cashCollected"), value: money(metrics.cashCollected), icon: Banknote },
+    { label: t("creditExposure"), value: money(metrics.creditExposure), icon: CreditCard },
+    { label: t("emptyLiability"), value: metrics.emptyLiability.toLocaleString(), icon: RotateCcw },
+    { label: t("activeDeliveries"), value: metrics.activeDeliveries.toString(), icon: Truck }
+  ];
+
+  const criticalCreditCustomers = displayedCustomers.filter((customer) => customer.outstanding / customer.creditLimit >= 0.8);
+  const highEmptiesCustomers = displayedCustomers.filter((customer) => customer.emptiesBalance > 250);
+
+  const quickActions = [
+    { key: "stock" as const, label: t("receiveStock"), icon: PackagePlus, roles: ["OWNER", "ADMIN", "WAREHOUSE_MANAGER"] as NavRole[] },
+    { key: "invoice" as const, label: t("createInvoice"), icon: ReceiptText, roles: ["OWNER", "ADMIN", "SALESPERSON"] as NavRole[] },
+    { key: "reconcile" as const, label: t("reconcileTruck"), icon: ClipboardCheck, roles: ["OWNER", "ADMIN", "WAREHOUSE_MANAGER", "DRIVER"] as NavRole[] },
+    { key: "payment" as const, label: t("recordPayment"), icon: Banknote, roles: ["OWNER", "ADMIN", "SALESPERSON", "ACCOUNTANT"] as NavRole[] }
+  ].filter((item) => !user?.role || item.roles.includes(user.role as NavRole));
+
+  useEffect(() => {
+    if (assignableRoles.length === 0) return;
+    setAccountForm((current) => ({
+      ...current,
+      role: assignableRoles.some((role) => role.name === current.role) ? current.role : assignableRoles[0].name
+    }));
+  }, [assignableRoles]);
+
+  useEffect(() => {
+    if (apiUsers.length === 0) return;
+    setResetPasswordForm((current) => ({
+      ...current,
+      userId: apiUsers.some((entry) => entry.id === current.userId) ? current.userId : apiUsers[0].id
+    }));
+  }, [apiUsers]);
+
+  useEffect(() => {
+    if (productFormMode === "create") return;
+    if (apiProducts.length === 0) return;
+    const selected = apiProducts.find((product) => product.id === productForm.productId) ?? apiProducts[0];
+    setProductForm((current) => ({
+      ...current,
+      productId: selected.id,
+      sku: selected.sku,
+      name: selected.name,
+      brand: selected.brand,
+      category: selected.category,
+      packageType: selected.packageType,
+      unitSize: selected.unitSize,
+      unitCost: asNumber(selected.unitCost),
+      unitPrice: asNumber(selected.unitPrice),
+      reorderLevel: selected.reorderLevel,
+      tracksEmpties: selected.tracksEmpties,
+      priceChangeReason: ""
+    }));
+  }, [apiProducts, productForm.productId, productFormMode]);
+
+  useEffect(() => {
+    if (!accessToken || !productForm.productId || !isAccountAdmin || productFormMode === "create") {
+      setProductPriceHistory([]);
+      return;
+    }
+    void getProductPriceHistory(accessToken, productForm.productId)
+      .then(setProductPriceHistory)
+      .catch(() => setProductPriceHistory([]));
+  }, [accessToken, isAccountAdmin, productForm.productId, productFormMode]);
+
+  async function handleLogin(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    setIsLoggingIn(true);
+    setAuthError(null);
+
+    try {
+      const response = await login(email, password);
+      window.localStorage.setItem("accessToken", response.accessToken);
+      await loadLiveData(response.accessToken);
+      setAccessToken(response.accessToken);
+      if (locales.some((entry) => entry.code === response.user.preferredLocale)) {
+        setLocale(response.user.preferredLocale as Locale);
+      }
+    } catch (error) {
+      setAccessToken(null);
+      setUser(null);
+      window.localStorage.removeItem("accessToken");
+      window.localStorage.removeItem("user");
+      setAuthError(error instanceof Error ? error.message : t("loginFailed"));
+    } finally {
+      setIsLoggingIn(false);
+    }
+  }
+
+  function handleLogout() {
+    setAccessToken(null);
+    setUser(null);
+    setApiStatus("mock");
+    clearLiveState();
+    setActiveAction(null);
+    window.localStorage.removeItem("accessToken");
+    window.localStorage.removeItem("user");
+  }
+
+  function closeActionModal() {
+    setActiveAction(null);
+    setActionError(null);
+  }
+
+  function openActionModal(action: Exclude<ActionType, null>) {
+    if (!canUseLiveActions) {
+      setActionNotice(t("signInLiveApi"));
+      return;
+    }
+
+    setActionNotice(null);
+    setActionError(null);
+    setActiveAction(action);
+
+    if (action === "stock") {
+      setStockForm({
+        productId: apiProducts[0]?.id ?? "",
+        quantity: 1,
+        note: ""
+      });
+    }
+
+    if (action === "invoice") {
+      setInvoiceForm({
+        customerId: apiCustomers[0]?.id ?? "",
+        items: [emptyInvoiceItem(apiProducts[0]?.id ?? "")],
+        initialPaymentMethod: "CASH",
+        initialPaymentAmount: 0,
+        paymentReference: ""
+      });
+    }
+
+    if (action === "payment") {
+      const firstCustomerId = apiCustomers[0]?.id ?? "";
+      setPaymentForm({
+        customerId: firstCustomerId,
+        invoiceId: "",
+        method: "CASH",
+        amount: 0,
+        reference: ""
+      });
+    }
+
+    if (action === "reconcile") {
+      const firstTrip = openTrips[0];
+      setReconcileForm({
+        tripId: firstTrip?.id ?? "",
+        cashCollected: firstTrip ? asNumber(firstTrip.cashCollected) : 0,
+        creditIssued: firstTrip ? asNumber(firstTrip.creditIssued) : 0,
+        items: buildReconcileItems(firstTrip)
+      });
+    }
+  }
+
+  async function runAction(task: () => Promise<void>, successMessage: string) {
+    if (!accessToken) return;
+
+    setIsActionSubmitting(true);
+    setActionError(null);
+
+    try {
+      await task();
+      await loadLiveData(accessToken);
+      setActionNotice(successMessage);
+      setActiveAction(null);
+    } catch (error) {
+      setActionError(error instanceof Error ? error.message : t("genericActionFailed"));
+    } finally {
+      setIsActionSubmitting(false);
+    }
+  }
+
+  async function submitStock(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (!accessToken) return;
+
+    await runAction(
+      async () => {
+        await receiveStock(accessToken, {
+          productId: stockForm.productId,
+          warehouseId: MAIN_WAREHOUSE_ID,
+          movementType: "PURCHASE_RECEIPT",
+          quantity: stockForm.quantity,
+          note: stockForm.note || undefined
+        });
+      },
+      t("receiveStock")
+    );
+  }
+
+  async function submitInvoice(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (!accessToken) return;
+
+    await runAction(
+      async () => {
+        await createInvoice(accessToken, {
+          customerId: invoiceForm.customerId,
+          items: invoiceForm.items.map((item) => ({
+            productId: item.productId,
+            quantity: item.quantity,
+            discountAmount: item.discountAmount || undefined
+          })),
+          initialPaymentMethod: invoiceForm.initialPaymentAmount > 0 ? invoiceForm.initialPaymentMethod : undefined,
+          initialPaymentAmount: invoiceForm.initialPaymentAmount > 0 ? invoiceForm.initialPaymentAmount : undefined,
+          paymentReference: invoiceForm.paymentReference || undefined
+        });
+      },
+      t("createInvoice")
+    );
+  }
+
+  async function submitPayment(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (!accessToken) return;
+
+    await runAction(
+      async () => {
+        await recordPayment(accessToken, {
+          customerId: paymentForm.customerId,
+          invoiceId: paymentForm.invoiceId || undefined,
+          method: paymentForm.method,
+          amount: paymentForm.amount,
+          reference: paymentForm.reference || undefined
+        });
+      },
+      t("recordPayment")
+    );
+  }
+
+  async function submitReconciliation(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (!accessToken || !reconcileForm.tripId) return;
+
+    await runAction(
+      async () => {
+        await reconcileDeliveryTrip(accessToken, reconcileForm.tripId, {
+          cashCollected: reconcileForm.cashCollected,
+          creditIssued: reconcileForm.creditIssued,
+          items: reconcileForm.items.map((item) => ({
+            itemId: item.itemId,
+            deliveredQuantity: item.deliveredQuantity,
+            returnedQuantity: item.returnedQuantity,
+            damagedQuantity: item.damagedQuantity
+          }))
+        });
+      },
+      t("reconcileTruck")
+    );
+  }
+
+  async function submitCreateUser(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (!accessToken) return;
+
+    await runAction(
+      async () => {
+        await createUser(accessToken, {
+          fullName: accountForm.fullName,
+          email: accountForm.email,
+          phone: accountForm.phone || undefined,
+          role: accountForm.role,
+          preferredLocale: accountForm.preferredLocale,
+          password: accountForm.password
+        });
+        setAccountForm({
+          fullName: "",
+          email: "",
+          phone: "",
+          role: assignableRoles[0]?.name ?? "OWNER",
+          preferredLocale: "en",
+          password: ""
+        });
+      },
+      t("userAccountCreated")
+    );
+  }
+
+  async function submitChangePassword(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (!accessToken) return;
+
+    await runAction(
+      async () => {
+        await changeMyPassword(accessToken, passwordForm);
+        setPasswordForm({
+          currentPassword: "",
+          newPassword: ""
+        });
+      },
+      t("myPasswordUpdated")
+    );
+  }
+
+  async function submitResetPassword(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (!accessToken) return;
+
+    await runAction(
+      async () => {
+        await resetUserPassword(accessToken, resetPasswordForm.userId, resetPasswordForm.newPassword);
+        setResetPasswordForm((current) => ({
+          ...current,
+          newPassword: ""
+        }));
+      },
+      t("userPasswordReset")
+    );
+  }
+
+  async function submitCreateProduct(event?: FormEvent<HTMLFormElement>) {
+    event?.preventDefault();
+    if (!accessToken) return;
+
+    await runAction(
+      async () => {
+        const product = await createProduct(accessToken, {
+          sku: productForm.sku,
+          name: productForm.name,
+          brand: productForm.brand,
+          category: productForm.category,
+          packageType: productForm.packageType,
+          unitSize: productForm.unitSize,
+          unitCost: productForm.unitCost,
+          unitPrice: productForm.unitPrice,
+          reorderLevel: productForm.reorderLevel,
+          tracksEmpties: productForm.tracksEmpties
+        });
+        setProductForm((current) => ({
+          ...current,
+          productId: product.id,
+          priceChangeReason: ""
+        }));
+        setProductFormMode("edit");
+      },
+      t("productCreated")
+    );
+  }
+
+  async function submitUpdateProduct(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (!accessToken || !productForm.productId) return;
+
+    await runAction(
+      async () => {
+        await updateProduct(accessToken, productForm.productId, {
+          sku: productForm.sku,
+          name: productForm.name,
+          brand: productForm.brand,
+          category: productForm.category,
+          packageType: productForm.packageType,
+          unitSize: productForm.unitSize,
+          unitCost: productForm.unitCost,
+          unitPrice: productForm.unitPrice,
+          reorderLevel: productForm.reorderLevel,
+          tracksEmpties: productForm.tracksEmpties,
+          priceChangeReason: productForm.priceChangeReason || undefined
+        });
+      },
+      t("productUpdated")
+    );
+  }
+
+  async function submitProductForm(event: FormEvent<HTMLFormElement>) {
+    if (productFormMode === "create") {
+      await submitCreateProduct(event);
+      return;
+    }
+
+    await submitUpdateProduct(event);
+  }
+
+  function startCreateProduct() {
+    setProductFormMode("create");
+    setProductPriceHistory([]);
+    setProductForm(emptyProductForm());
+  }
+
+  async function toggleUserStatus(target: ApiUser) {
+    if (!accessToken) return;
+
+    await runAction(
+      async () => {
+        await updateUser(accessToken, target.id, {
+          isActive: !target.isActive
+        });
+      },
+      target.isActive ? t("accountDeactivated") : t("accountReactivated")
+    );
+  }
+
+  async function toggleProductStatus(target: ApiProduct) {
+    if (!accessToken) return;
+
+    await runAction(
+      async () => {
+        await updateProduct(accessToken, target.id, {
+          isActive: !target.isActive
+        });
+      },
+      target.isActive ? t("productDeactivated") : t("productReactivated")
+    );
+  }
+
+  return (
+    <main className="app-shell">
+      <aside className="sidebar">
+        <div className="brand">
+          <div className="brand-mark">DC</div>
+          <div>
+            <h1>{t("appName")}</h1>
+            <p>{t("business")}</p>
+          </div>
+        </div>
+
+        <nav className="nav" aria-label="Primary">
+          {navItems.map((item, index) => (
+            <button className={`nav-button ${index === 0 ? "active" : ""}`} key={item.label} type="button">
+              <item.icon size={18} aria-hidden="true" />
+              <span>{item.label}</span>
+            </button>
+          ))}
+        </nav>
+
+        <p className="sidebar-note">{t("systemScope")}</p>
+      </aside>
+
+      <section className="main">
+        <header className="topbar">
+          <label className="search">
+            <Search size={18} aria-hidden="true" />
+            <input aria-label="Search" placeholder={t("searchPlaceholder")} />
+          </label>
+
+          <div aria-label={t("language")} className="language-switcher" title={t("language")}>
+            {locales.map((item) => (
+              <button
+                className={locale === item.code ? "active" : ""}
+                key={item.code}
+                onClick={() => setLocale(item.code)}
+                title={item.label}
+                type="button"
+              >
+                {item.short}
+              </button>
+            ))}
+          </div>
+        </header>
+
+        <div className="content">
+          <section className="auth-band" aria-label="Authentication">
+            <div>
+              <span className={`badge ${apiStatus === "connected" ? "good" : "warn"}`}>
+                {apiStatus === "connected" ? t("apiConnected") : t("demoMode")}
+              </span>
+              <p>
+                {isLiveDataLoading
+                  ? t("loadingData")
+                  : apiStatus === "connected" && user
+                    ? `${t("signedInAs")} ${user.fullName}. ${t("liveDataNote")}`
+                    : t("fallbackDataNote")}
+              </p>
+            </div>
+
+            {user ? (
+              <button className="primary-button" onClick={handleLogout} type="button">
+                {t("logout")}
+              </button>
+            ) : (
+              <form className="login-form" onSubmit={handleLogin}>
+                <label>
+                  <span>{t("email")}</span>
+                  <input value={email} onChange={(event) => setEmail(event.target.value)} type="email" />
+                </label>
+                <label>
+                  <span>{t("password")}</span>
+                  <input value={password} onChange={(event) => setPassword(event.target.value)} type="password" />
+                </label>
+                <button className="primary-button" disabled={isLoggingIn} type="submit">
+                  {isLoggingIn ? "..." : t("login")}
+                </button>
+                <small>{authError ?? t("seedCredentials")}</small>
+              </form>
+            )}
+          </section>
+
+          {actionNotice ? <section className="status-banner success">{actionNotice}</section> : null}
+
+          {!isAuthenticated ? (
+            <section className="panel">
+              <div className="panel-header">
+                <div>
+                  <h3>{t("login")}</h3>
+                  <span>Sign in to load live inventory, users, permissions, and audit activity.</span>
+                </div>
+                <ShieldCheck size={18} color="var(--brand)" aria-hidden="true" />
+              </div>
+              <div className="panel-body">
+                <p className="table-state">
+                  The previous screen kept showing demo business panels before authentication. That is why a hard refresh appeared to do
+                  nothing. Phase 1 owner and admin controls only appear after a successful login.
+                </p>
+              </div>
+            </section>
+          ) : (
+            <>
+              <div className="page-heading">
+                <div>
+                  <h2>{t("ownerCommand")}</h2>
+                  <p>
+                    {t("overview")}. {t("systemScope")}
+                  </p>
+                </div>
+                <div className="date-pill">
+                  <CalendarDays size={17} aria-hidden="true" />
+                  <span>
+                    {t("today")}: {formatToday(locale)}
+                  </span>
+                </div>
+              </div>
+
+              <section className="kpi-grid" aria-label="Business metrics">
+                {kpis.map((kpi) => (
+                  <article className="kpi-card" key={kpi.label}>
+                    <div className="icon">
+                      <kpi.icon size={19} aria-hidden="true" />
+                    </div>
+                    <div>
+                      <p>{kpi.label}</p>
+                      <strong>{kpi.value}</strong>
+                    </div>
+                  </article>
+                ))}
+              </section>
+
+              <section className="section-grid">
+                <article className="panel">
+                  <div className="panel-header">
+                    <div>
+                      <h3>{t("inventory")}</h3>
+                      <span>
+                        {metrics.lowStock} {t("lowStock").toLowerCase()}
+                      </span>
+                    </div>
+                    <span className="badge warn">{t("reorderNow")}</span>
+                  </div>
+                  <div className="table-wrap">
+                    <table>
+                      <thead>
+                        <tr>
+                          <th>{t("product")}</th>
+                          <th>{t("package")}</th>
+                          <th>{t("stock")}</th>
+                          <th>{t("reorder")}</th>
+                          <th>{t("margin")}</th>
+                          <th>{t("empties")}</th>
+                          <th>{t("status")}</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {displayedProducts.map((product) => {
+                          const status = getProductStatus(product);
+                          return (
+                            <tr key={product.id}>
+                              <td>
+                                <strong>{product.name}</strong>
+                                <small>{product.sku}</small>
+                              </td>
+                              <td>{product.unitSize}</td>
+                              <td>{product.stockUnits.toLocaleString()}</td>
+                              <td>{product.reorderLevel.toLocaleString()}</td>
+                              <td>{money(product.unitPrice - product.unitCost)}</td>
+                              <td>{product.emptiesOwed.toLocaleString()}</td>
+                              <td>
+                                <span className={`badge ${status}`}>
+                                  {status === "good" ? t("healthy") : status === "warn" ? t("watch") : t("reorderNow")}
+                                </span>
+                              </td>
+                            </tr>
+                          );
+                        })}
+                        {displayedProducts.length === 0 ? (
+                          <tr>
+                            <td className="table-state" colSpan={7}>
+                              {isLiveDataLoading ? t("loadingData") : t("noRecords")}
+                            </td>
+                          </tr>
+                        ) : null}
+                      </tbody>
+                    </table>
+                  </div>
+                </article>
+
+                <aside className="side-stack">
+                  <article className="panel">
+                    <div className="panel-header">
+                      <h3>{t("alerts")}</h3>
+                      <AlertTriangle size={18} color="var(--amber)" aria-hidden="true" />
+                    </div>
+                    <ul className="alert-list">
+                      <li>
+                        <span className="alert-icon">
+                          <Boxes size={18} aria-hidden="true" />
+                        </span>
+                        <div>
+                          <strong>{metrics.lowStock}</strong>
+                          <span>{t("alertLowStock")}</span>
+                        </div>
+                      </li>
+                      <li>
+                        <span className="alert-icon">
+                          <CreditCard size={18} aria-hidden="true" />
+                        </span>
+                        <div>
+                          <strong>{criticalCreditCustomers.length}</strong>
+                          <span>{t("alertCredit")}</span>
+                        </div>
+                      </li>
+                      <li>
+                        <span className="alert-icon">
+                          <RotateCcw size={18} aria-hidden="true" />
+                        </span>
+                        <div>
+                          <strong>{highEmptiesCustomers.length}</strong>
+                          <span>{t("alertEmpties")}</span>
+                        </div>
+                      </li>
+                    </ul>
+                  </article>
+
+                  <article className="panel">
+                    <div className="panel-header">
+                      <h3>{t("quickActions")}</h3>
+                      <Languages size={18} color="var(--brand)" aria-hidden="true" />
+                    </div>
+                    <div className="action-list">
+                      {quickActions.map((action) => (
+                        <button
+                          className="action-card"
+                          disabled={!canUseLiveActions}
+                          key={action.key}
+                          onClick={() => openActionModal(action.key)}
+                          type="button"
+                        >
+                          <action.icon size={19} aria-hidden="true" />
+                          <span>
+                            <strong>{action.label}</strong>
+                            <span>{canUseLiveActions ? t("liveEntry") : t("loginRequired")}</span>
+                          </span>
+                        </button>
+                      ))}
+                    </div>
+                  </article>
+                </aside>
+              </section>
+
+              {isAccountAdmin ? (
+                <article className="panel">
+                  <div className="panel-header">
+                    <div>
+                      <h3>{t("productManagement")}</h3>
+                      <span>{t("productSetupNote")}</span>
+                    </div>
+                    <Boxes size={18} color="var(--brand)" aria-hidden="true" />
+                  </div>
+                  <div className="panel-body">
+                    <form className="entry-form tight-form" onSubmit={submitProductForm}>
+                      <div className="form-grid">
+                        <label>
+                          <span>{t("selectedProduct")}</span>
+                          <select
+                            disabled={productFormMode === "create"}
+                            value={productForm.productId}
+                            onChange={(event) => {
+                              setProductFormMode("edit");
+                              setProductForm((current) => ({ ...current, productId: event.target.value }));
+                            }}
+                          >
+                            {productFormMode === "create" ? <option value="">{t("createProduct")}</option> : null}
+                            {apiProducts.map((product) => (
+                              <option key={product.id} value={product.id}>
+                                {product.name} ({product.sku})
+                              </option>
+                            ))}
+                          </select>
+                        </label>
+                        <label>
+                          <span>{t("sku")}</span>
+                          <input
+                            required
+                            value={productForm.sku}
+                            onChange={(event) => setProductForm((current) => ({ ...current, sku: event.target.value }))}
+                          />
+                        </label>
+                        <label>
+                          <span>{t("product")}</span>
+                          <input
+                            required
+                            value={productForm.name}
+                            onChange={(event) => setProductForm((current) => ({ ...current, name: event.target.value }))}
+                          />
+                        </label>
+                      </div>
+                      <div className="form-grid">
+                        <label>
+                          <span>{t("brand")}</span>
+                          <input
+                            required
+                            value={productForm.brand}
+                            onChange={(event) => setProductForm((current) => ({ ...current, brand: event.target.value }))}
+                          />
+                        </label>
+                        <label>
+                          <span>{t("category")}</span>
+                          <select
+                            value={productForm.category}
+                            onChange={(event) => setProductForm((current) => ({ ...current, category: event.target.value }))}
+                          >
+                            <option value="BEER">BEER</option>
+                            <option value="SOFT_DRINK">SOFT_DRINK</option>
+                            <option value="WATER">WATER</option>
+                            <option value="OTHER">OTHER</option>
+                          </select>
+                        </label>
+                        <label>
+                          <span>{t("package")}</span>
+                          <select
+                            value={productForm.packageType}
+                            onChange={(event) => setProductForm((current) => ({ ...current, packageType: event.target.value }))}
+                          >
+                            <option value="BOTTLE_CRATE">BOTTLE_CRATE</option>
+                            <option value="CAN_TRAY">CAN_TRAY</option>
+                            <option value="PET_PACK">PET_PACK</option>
+                            <option value="SINGLE_UNIT">SINGLE_UNIT</option>
+                          </select>
+                        </label>
+                      </div>
+                      <div className="form-grid">
+                        <label>
+                          <span>{t("unitSize")}</span>
+                          <input
+                            required
+                            value={productForm.unitSize}
+                            onChange={(event) => setProductForm((current) => ({ ...current, unitSize: event.target.value }))}
+                          />
+                        </label>
+                        <label>
+                          <span>{t("unitCost")}</span>
+                          <input
+                            min={0}
+                            required
+                            type="number"
+                            value={productForm.unitCost}
+                            onChange={(event) =>
+                              setProductForm((current) => ({ ...current, unitCost: Number(event.target.value) || 0 }))
+                            }
+                          />
+                        </label>
+                        <label>
+                          <span>{t("unitPrice")}</span>
+                          <input
+                            min={0}
+                            required
+                            type="number"
+                            value={productForm.unitPrice}
+                            onChange={(event) =>
+                              setProductForm((current) => ({ ...current, unitPrice: Number(event.target.value) || 0 }))
+                            }
+                          />
+                        </label>
+                      </div>
+                      <div className="form-grid">
+                        <label>
+                          <span>{t("reorder")}</span>
+                          <input
+                            min={0}
+                            required
+                            type="number"
+                            value={productForm.reorderLevel}
+                            onChange={(event) =>
+                              setProductForm((current) => ({ ...current, reorderLevel: Number(event.target.value) || 0 }))
+                            }
+                          />
+                        </label>
+                        <label className="checkbox-label">
+                          <input
+                            checked={productForm.tracksEmpties}
+                            onChange={(event) => setProductForm((current) => ({ ...current, tracksEmpties: event.target.checked }))}
+                            type="checkbox"
+                          />
+                          <span>{t("tracksEmpties")}</span>
+                        </label>
+                        <label>
+                          <span>{t("priceChangeReason")}</span>
+                          <input
+                            value={productForm.priceChangeReason}
+                            onChange={(event) => setProductForm((current) => ({ ...current, priceChangeReason: event.target.value }))}
+                          />
+                        </label>
+                      </div>
+                      <div className="modal-actions">
+                        <button className="primary-button" disabled={isActionSubmitting} type="submit">
+                          {isActionSubmitting ? t("saving") : productFormMode === "create" ? t("createProduct") : t("updateProduct")}
+                        </button>
+                        <button
+                          className="ghost-button"
+                          disabled={isActionSubmitting}
+                          onClick={startCreateProduct}
+                          type="button"
+                        >
+                          {t("createProduct")}
+                        </button>
+                        {productFormMode === "edit" && apiProducts.find((product) => product.id === productForm.productId) ? (
+                          <button
+                            className="ghost-button"
+                            disabled={isActionSubmitting}
+                            onClick={() => {
+                              const selected = apiProducts.find((product) => product.id === productForm.productId);
+                              if (selected) void toggleProductStatus(selected);
+                            }}
+                            type="button"
+                          >
+                            {apiProducts.find((product) => product.id === productForm.productId)?.isActive
+                              ? t("deactivate")
+                              : t("reactivate")}
+                          </button>
+                        ) : null}
+                      </div>
+                    </form>
+
+                    <div className="table-wrap">
+                      <table>
+                        <thead>
+                          <tr>
+                            <th>{t("sku")}</th>
+                            <th>{t("product")}</th>
+                            <th>{t("unitCost")}</th>
+                            <th>{t("unitPrice")}</th>
+                            <th>{t("reorder")}</th>
+                            <th>{t("status")}</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {apiProducts.map((product) => (
+                            <tr key={product.id}>
+                              <td>{product.sku}</td>
+                              <td>
+                                <strong>{product.name}</strong>
+                                <small>{product.brand}</small>
+                              </td>
+                              <td>{money(asNumber(product.unitCost))}</td>
+                              <td>{money(asNumber(product.unitPrice))}</td>
+                              <td>{product.reorderLevel.toLocaleString()}</td>
+                              <td>
+                                <span className={`badge ${product.isActive ? "good" : "danger"}`}>
+                                  {product.isActive ? t("active") : t("inactive")}
+                                </span>
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+
+                    <div className="table-wrap">
+                      <table>
+                        <thead>
+                          <tr>
+                            <th>{t("previousPrice")}</th>
+                            <th>{t("newPrice")}</th>
+                            <th>{t("changedBy")}</th>
+                            <th>{t("time")}</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {productPriceHistory.map((entry) => (
+                            <tr key={entry.id}>
+                              <td>{entry.previousPrice === null ? "-" : money(asNumber(entry.previousPrice))}</td>
+                              <td>
+                                <strong>{money(asNumber(entry.newPrice))}</strong>
+                                <small>{entry.changeReason ?? "-"}</small>
+                              </td>
+                              <td>
+                                <strong>{entry.changedBy?.fullName ?? "-"}</strong>
+                                <small>{entry.changedBy?.role.name ?? "-"}</small>
+                              </td>
+                              <td>{new Date(entry.createdAt).toLocaleString("en-RW")}</td>
+                            </tr>
+                          ))}
+                          {productPriceHistory.length === 0 ? (
+                            <tr>
+                              <td className="table-state" colSpan={4}>
+                                {t("noRecords")}
+                              </td>
+                            </tr>
+                          ) : null}
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
+                </article>
+              ) : null}
+
+              <section className="two-column">
+                <article className="panel">
+                  <div className="panel-header">
+                    <h3>{t("customers")}</h3>
+                    <Users size={18} color="var(--brand)" aria-hidden="true" />
+                  </div>
+                  <div className="table-wrap">
+                    <table>
+                  <thead>
+                    <tr>
+                      <th>{t("customer")}</th>
+                      <th>{t("route")}</th>
+                      <th>{t("creditLimit")}</th>
+                      <th>{t("outstanding")}</th>
+                      <th>{t("empties")}</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {displayedCustomers.map((customer) => (
+                      <tr key={customer.id}>
+                        <td>
+                          <strong>{customer.name}</strong>
+                          <small>{customer.phone}</small>
+                        </td>
+                        <td>{customer.route}</td>
+                        <td>{money(customer.creditLimit)}</td>
+                        <td>{money(customer.outstanding)}</td>
+                        <td>{customer.emptiesBalance.toLocaleString()}</td>
+                      </tr>
+                    ))}
+                    {displayedCustomers.length === 0 ? (
+                      <tr>
+                        <td className="table-state" colSpan={5}>
+                          {isLiveDataLoading ? t("loadingData") : t("noRecords")}
+                        </td>
+                      </tr>
+                    ) : null}
+                  </tbody>
+                    </table>
+                  </div>
+                </article>
+
+                <article className="panel">
+                  <div className="panel-header">
+                    <h3>{t("deliveries")}</h3>
+                    <Route size={18} color="var(--brand)" aria-hidden="true" />
+                  </div>
+                  <div className="table-wrap">
+                    <table>
+                  <thead>
+                    <tr>
+                      <th>{t("driver")}</th>
+                      <th>{t("truck")}</th>
+                      <th>{t("delivered")}</th>
+                      <th>{t("cashCollected")}</th>
+                      <th>{t("status")}</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {displayedDeliveries.map((delivery) => (
+                      <tr key={delivery.id}>
+                        <td>
+                          <strong>{delivery.driver}</strong>
+                          <small>{delivery.route}</small>
+                        </td>
+                        <td>{delivery.truck}</td>
+                        <td>{money(delivery.deliveredValue)}</td>
+                        <td>{money(delivery.cashCollected)}</td>
+                        <td>
+                          <span className="badge">{delivery.status}</span>
+                        </td>
+                      </tr>
+                    ))}
+                    {displayedDeliveries.length === 0 ? (
+                      <tr>
+                        <td className="table-state" colSpan={5}>
+                          {isLiveDataLoading ? t("loadingData") : t("noRecords")}
+                        </td>
+                      </tr>
+                    ) : null}
+                  </tbody>
+                    </table>
+                  </div>
+                </article>
+              </section>
+
+              <article className="panel">
+                <div className="panel-header">
+                  <h3>{t("payments")}</h3>
+                  <ShieldCheck size={18} color="var(--brand)" aria-hidden="true" />
+                </div>
+                <div className="table-wrap">
+                  <table>
+                <thead>
+                  <tr>
+                    <th>{t("customer")}</th>
+                    <th>{t("method")}</th>
+                    <th>{t("amount")}</th>
+                    <th>{t("reference")}</th>
+                    <th>{t("recorded")}</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {displayedPayments.map((payment) => (
+                    <tr key={payment.id}>
+                      <td>{payment.customer}</td>
+                      <td>{payment.method}</td>
+                      <td>{money(payment.amount)}</td>
+                      <td>{payment.reference}</td>
+                      <td>{payment.recordedAt}</td>
+                    </tr>
+                  ))}
+                  {displayedPayments.length === 0 ? (
+                    <tr>
+                      <td className="table-state" colSpan={5}>
+                        {isLiveDataLoading ? t("loadingData") : t("noRecords")}
+                      </td>
+                    </tr>
+                  ) : null}
+                </tbody>
+                  </table>
+                </div>
+              </article>
+
+              <section className="two-column">
+                {isAccountAdmin ? (
+                  <article className="panel">
+                <div className="panel-header">
+                  <div>
+                    <h3>{t("teamAccess")}</h3>
+                    <span>{t("accessSetupNote")}</span>
+                  </div>
+                  <Users size={18} color="var(--brand)" aria-hidden="true" />
+                </div>
+                <div className="panel-body">
+                  <form className="entry-form tight-form" onSubmit={submitCreateUser}>
+                    <div className="form-grid">
+                      <label>
+                        <span>{t("fullName")}</span>
+                        <input
+                          required
+                          value={accountForm.fullName}
+                          onChange={(event) => setAccountForm((current) => ({ ...current, fullName: event.target.value }))}
+                        />
+                      </label>
+                      <label>
+                        <span>{t("email")}</span>
+                        <input
+                          required
+                          type="email"
+                          value={accountForm.email}
+                          onChange={(event) => setAccountForm((current) => ({ ...current, email: event.target.value }))}
+                        />
+                      </label>
+                      <label>
+                        <span>{t("phone")}</span>
+                        <input
+                          value={accountForm.phone}
+                          onChange={(event) => setAccountForm((current) => ({ ...current, phone: event.target.value }))}
+                        />
+                      </label>
+                    </div>
+                    <div className="form-grid">
+                      <label>
+                        <span>{t("role")}</span>
+                        <select
+                          value={accountForm.role}
+                          onChange={(event) => setAccountForm((current) => ({ ...current, role: event.target.value }))}
+                        >
+                          {assignableRoles.map((role) => (
+                            <option key={role.id} value={role.name}>
+                              {role.name}
+                            </option>
+                          ))}
+                        </select>
+                      </label>
+                      <label>
+                        <span>{t("locale")}</span>
+                        <select
+                          value={accountForm.preferredLocale}
+                          onChange={(event) =>
+                            setAccountForm((current) => ({ ...current, preferredLocale: event.target.value as Locale }))
+                          }
+                        >
+                          {locales.map((entry) => (
+                            <option key={entry.code} value={entry.code}>
+                              {entry.label}
+                            </option>
+                          ))}
+                        </select>
+                      </label>
+                      <label>
+                        <span>{t("temporaryPassword")}</span>
+                        <input
+                          required
+                          minLength={8}
+                          type="password"
+                          value={accountForm.password}
+                          onChange={(event) => setAccountForm((current) => ({ ...current, password: event.target.value }))}
+                        />
+                      </label>
+                    </div>
+                    <div className="modal-actions">
+                      <button className="primary-button" disabled={isActionSubmitting} type="submit">
+                        {isActionSubmitting ? t("saving") : t("createAccount")}
+                      </button>
+                    </div>
+                  </form>
+
+                  <div className="table-wrap">
+                    <table>
+                      <thead>
+                        <tr>
+                          <th>{t("userLabel")}</th>
+                          <th>{t("role")}</th>
+                          <th>{t("locale")}</th>
+                          <th>{t("status")}</th>
+                          <th>{t("action")}</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {apiUsers.map((account) => (
+                          <tr key={account.id}>
+                            <td>
+                              <strong>{account.fullName}</strong>
+                              <small>{account.email ?? "-"}</small>
+                            </td>
+                            <td>{account.role}</td>
+                            <td>{String(account.preferredLocale).toUpperCase()}</td>
+                            <td>
+                              <span className={`badge ${account.isActive ? "good" : "danger"}`}>
+                                {account.isActive ? t("active") : t("inactive")}
+                              </span>
+                            </td>
+                            <td>
+                              <button className="ghost-button inline-button" onClick={() => void toggleUserStatus(account)} type="button">
+                                {account.isActive ? t("deactivate") : t("reactivate")}
+                              </button>
+                            </td>
+                          </tr>
+                        ))}
+                        {apiUsers.length === 0 ? (
+                          <tr>
+                            <td className="table-state" colSpan={5}>
+                              {isLiveDataLoading ? t("loadingData") : t("noRecords")}
+                            </td>
+                          </tr>
+                        ) : null}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+                  </article>
+                ) : null}
+
+                <article className="panel">
+                  <div className="panel-header">
+                    <div>
+                      <h3>{t("accountSecurity")}</h3>
+                      <span>{t("passwordRotationNote")}</span>
+                    </div>
+                    <Settings size={18} color="var(--brand)" aria-hidden="true" />
+                  </div>
+                  <div className="panel-body">
+                    <form className="entry-form tight-form" onSubmit={submitChangePassword}>
+                  <div className="form-grid">
+                    <label>
+                      <span>{t("currentPassword")}</span>
+                      <input
+                        required
+                        type="password"
+                        value={passwordForm.currentPassword}
+                        onChange={(event) =>
+                          setPasswordForm((current) => ({ ...current, currentPassword: event.target.value }))
+                        }
+                      />
+                    </label>
+                    <label>
+                      <span>{t("newPassword")}</span>
+                      <input
+                        required
+                        minLength={8}
+                        type="password"
+                        value={passwordForm.newPassword}
+                        onChange={(event) => setPasswordForm((current) => ({ ...current, newPassword: event.target.value }))}
+                      />
+                    </label>
+                  </div>
+                  <div className="modal-actions">
+                    <button className="primary-button" disabled={isActionSubmitting} type="submit">
+                      {isActionSubmitting ? t("saving") : t("changeMyPassword")}
+                    </button>
+                  </div>
+                    </form>
+
+                    {isAccountAdmin ? (
+                      <form className="entry-form tight-form split-form" onSubmit={submitResetPassword}>
+                    <div className="form-grid">
+                      <label>
+                        <span>{t("resetAnotherUser")}</span>
+                        <select
+                          value={resetPasswordForm.userId}
+                          onChange={(event) =>
+                            setResetPasswordForm((current) => ({ ...current, userId: event.target.value }))
+                          }
+                        >
+                          {apiUsers.map((account) => (
+                            <option key={account.id} value={account.id}>
+                              {account.fullName} ({account.role})
+                            </option>
+                          ))}
+                        </select>
+                      </label>
+                      <label>
+                        <span>{t("temporaryPassword")}</span>
+                        <input
+                          required
+                          minLength={8}
+                          type="password"
+                          value={resetPasswordForm.newPassword}
+                          onChange={(event) =>
+                            setResetPasswordForm((current) => ({ ...current, newPassword: event.target.value }))
+                          }
+                        />
+                      </label>
+                    </div>
+                    <div className="modal-actions">
+                      <button className="ghost-button" disabled={isActionSubmitting} type="submit">
+                        {isActionSubmitting ? t("saving") : t("resetSelectedUser")}
+                      </button>
+                    </div>
+                      </form>
+                    ) : null}
+                  </div>
+                </article>
+              </section>
+
+              {user?.role === "OWNER" ? (
+                <article className="panel">
+              <div className="panel-header">
+                <div>
+                  <h3>{t("auditTrail")}</h3>
+                  <span>{t("recentSecurityActivity")}</span>
+                </div>
+                <ShieldCheck size={18} color="var(--brand)" aria-hidden="true" />
+              </div>
+              <div className="table-wrap">
+                <table>
+                  <thead>
+                    <tr>
+                      <th>{t("action")}</th>
+                      <th>{t("actor")}</th>
+                      <th>{t("time")}</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {apiAuditLogs.map((entry) => (
+                      <tr key={entry.id}>
+                        <td>{titleCaseEnum(entry.action)}</td>
+                        <td>
+                          <strong>{entry.user?.fullName ?? "-"}</strong>
+                          <small>{entry.user?.role.name ?? "-"}</small>
+                        </td>
+                        <td>{new Date(entry.createdAt).toLocaleString("en-RW")}</td>
+                      </tr>
+                    ))}
+                    {apiAuditLogs.length === 0 ? (
+                      <tr>
+                        <td className="table-state" colSpan={3}>
+                          {isLiveDataLoading ? t("loadingData") : t("noRecords")}
+                        </td>
+                      </tr>
+                    ) : null}
+                  </tbody>
+                </table>
+              </div>
+                </article>
+              ) : null}
+            </>
+          )}
+        </div>
+      </section>
+
+      {activeAction ? (
+        <div className="modal-overlay" role="presentation">
+          <section aria-modal="true" className="modal-card" role="dialog">
+            <div className="modal-header">
+              <h3>
+                {activeAction === "stock"
+                  ? t("receiveStock")
+                  : activeAction === "invoice"
+                    ? t("createInvoice")
+                    : activeAction === "reconcile"
+                      ? t("reconcileTruck")
+                      : t("recordPayment")}
+              </h3>
+              <button className="icon-button" onClick={closeActionModal} type="button">
+                <X size={18} aria-hidden="true" />
+              </button>
+            </div>
+
+            {actionError ? <p className="form-error">{actionError}</p> : null}
+
+            {activeAction === "stock" ? (
+              <form className="entry-form" onSubmit={submitStock}>
+                <label>
+                  <span>{t("product")}</span>
+                  <select
+                    value={stockForm.productId}
+                    onChange={(event) => setStockForm((current) => ({ ...current, productId: event.target.value }))}
+                  >
+                    {apiProducts.map((product) => (
+                      <option key={product.id} value={product.id}>
+                        {product.name}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+                <label>
+                  <span>Quantity</span>
+                  <input
+                    min={1}
+                    type="number"
+                    value={stockForm.quantity}
+                    onChange={(event) =>
+                      setStockForm((current) => ({ ...current, quantity: Number(event.target.value) || 0 }))
+                    }
+                  />
+                </label>
+                <label>
+                  <span>Note</span>
+                  <textarea
+                    rows={3}
+                    value={stockForm.note}
+                    onChange={(event) => setStockForm((current) => ({ ...current, note: event.target.value }))}
+                  />
+                </label>
+                <div className="modal-actions">
+                  <button className="ghost-button" onClick={closeActionModal} type="button">
+                    Close
+                  </button>
+                  <button className="primary-button" disabled={isActionSubmitting} type="submit">
+                    {isActionSubmitting ? "Saving..." : "Record receipt"}
+                  </button>
+                </div>
+              </form>
+            ) : null}
+
+            {activeAction === "invoice" ? (
+              <form className="entry-form" onSubmit={submitInvoice}>
+                <label>
+                  <span>{t("customer")}</span>
+                  <select
+                    value={invoiceForm.customerId}
+                    onChange={(event) => setInvoiceForm((current) => ({ ...current, customerId: event.target.value }))}
+                  >
+                    {apiCustomers.map((customer) => (
+                      <option key={customer.id} value={customer.id}>
+                        {customer.name}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+
+                <div className="form-section">
+                  <div className="form-section-header">
+                    <strong>Items</strong>
+                    <button
+                      className="ghost-button"
+                      onClick={() =>
+                        setInvoiceForm((current) => ({
+                          ...current,
+                          items: [...current.items, emptyInvoiceItem(apiProducts[0]?.id ?? "")]
+                        }))
+                      }
+                      type="button"
+                    >
+                      Add item
+                    </button>
+                  </div>
+                  {invoiceForm.items.map((item, index) => (
+                    <div className="form-grid compact" key={`${item.productId}-${index}`}>
+                      <label>
+                        <span>{t("product")}</span>
+                        <select
+                          value={item.productId}
+                          onChange={(event) =>
+                            setInvoiceForm((current) => ({
+                              ...current,
+                              items: current.items.map((entry, entryIndex) =>
+                                entryIndex === index ? { ...entry, productId: event.target.value } : entry
+                              )
+                            }))
+                          }
+                        >
+                          {apiProducts.map((product) => (
+                            <option key={product.id} value={product.id}>
+                              {product.name}
+                            </option>
+                          ))}
+                        </select>
+                      </label>
+                      <label>
+                        <span>Quantity</span>
+                        <input
+                          min={1}
+                          type="number"
+                          value={item.quantity}
+                          onChange={(event) =>
+                            setInvoiceForm((current) => ({
+                              ...current,
+                              items: current.items.map((entry, entryIndex) =>
+                                entryIndex === index ? { ...entry, quantity: Number(event.target.value) || 0 } : entry
+                              )
+                            }))
+                          }
+                        />
+                      </label>
+                      <label>
+                        <span>Discount</span>
+                        <input
+                          min={0}
+                          type="number"
+                          value={item.discountAmount}
+                          onChange={(event) =>
+                            setInvoiceForm((current) => ({
+                              ...current,
+                              items: current.items.map((entry, entryIndex) =>
+                                entryIndex === index
+                                  ? { ...entry, discountAmount: Number(event.target.value) || 0 }
+                                  : entry
+                              )
+                            }))
+                          }
+                        />
+                      </label>
+                      <button
+                        className="ghost-button remove-button"
+                        disabled={invoiceForm.items.length === 1}
+                        onClick={() =>
+                          setInvoiceForm((current) => ({
+                            ...current,
+                            items: current.items.filter((_, entryIndex) => entryIndex !== index)
+                          }))
+                        }
+                        type="button"
+                      >
+                        Remove
+                      </button>
+                    </div>
+                  ))}
+                </div>
+
+                <div className="form-grid">
+                  <label>
+                    <span>Initial payment method</span>
+                    <select
+                      value={invoiceForm.initialPaymentMethod}
+                      onChange={(event) =>
+                        setInvoiceForm((current) => ({
+                          ...current,
+                          initialPaymentMethod: event.target.value as "CASH" | "BANK" | "MOBILE_MONEY" | "CREDIT"
+                        }))
+                      }
+                    >
+                      <option value="CASH">Cash</option>
+                      <option value="BANK">Bank</option>
+                      <option value="MOBILE_MONEY">Mobile Money</option>
+                      <option value="CREDIT">Credit</option>
+                    </select>
+                  </label>
+                  <label>
+                    <span>Initial payment amount</span>
+                    <input
+                      min={0}
+                      type="number"
+                      value={invoiceForm.initialPaymentAmount}
+                      onChange={(event) =>
+                        setInvoiceForm((current) => ({
+                          ...current,
+                          initialPaymentAmount: Number(event.target.value) || 0
+                        }))
+                      }
+                    />
+                  </label>
+                  <label>
+                    <span>{t("reference")}</span>
+                    <input
+                      value={invoiceForm.paymentReference}
+                      onChange={(event) =>
+                        setInvoiceForm((current) => ({ ...current, paymentReference: event.target.value }))
+                      }
+                    />
+                  </label>
+                </div>
+
+                <div className="modal-actions">
+                  <button className="ghost-button" onClick={closeActionModal} type="button">
+                    Close
+                  </button>
+                  <button className="primary-button" disabled={isActionSubmitting} type="submit">
+                    {isActionSubmitting ? "Saving..." : "Create invoice"}
+                  </button>
+                </div>
+              </form>
+            ) : null}
+
+            {activeAction === "payment" ? (
+              <form className="entry-form" onSubmit={submitPayment}>
+                <label>
+                  <span>{t("customer")}</span>
+                  <select
+                    value={paymentForm.customerId}
+                    onChange={(event) =>
+                      setPaymentForm((current) => ({
+                        ...current,
+                        customerId: event.target.value,
+                        invoiceId: ""
+                      }))
+                    }
+                  >
+                    {apiCustomers.map((customer) => (
+                      <option key={customer.id} value={customer.id}>
+                        {customer.name}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+                <label>
+                  <span>Invoice</span>
+                  <select
+                    value={paymentForm.invoiceId}
+                    onChange={(event) => setPaymentForm((current) => ({ ...current, invoiceId: event.target.value }))}
+                  >
+                    <option value="">Apply to customer balance</option>
+                    {payableInvoices.map((invoice) => (
+                      <option key={invoice.id} value={invoice.id}>
+                        {invoice.invoiceNumber} - {money(asNumber(invoice.totalAmount))}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+                <div className="form-grid">
+                  <label>
+                    <span>{t("method")}</span>
+                    <select
+                      value={paymentForm.method}
+                      onChange={(event) =>
+                        setPaymentForm((current) => ({
+                          ...current,
+                          method: event.target.value as "CASH" | "BANK" | "MOBILE_MONEY" | "CREDIT"
+                        }))
+                      }
+                    >
+                      <option value="CASH">Cash</option>
+                      <option value="BANK">Bank</option>
+                      <option value="MOBILE_MONEY">Mobile Money</option>
+                      <option value="CREDIT">Credit</option>
+                    </select>
+                  </label>
+                  <label>
+                    <span>{t("amount")}</span>
+                    <input
+                      min={1}
+                      type="number"
+                      value={paymentForm.amount}
+                      onChange={(event) =>
+                        setPaymentForm((current) => ({ ...current, amount: Number(event.target.value) || 0 }))
+                      }
+                    />
+                  </label>
+                  <label>
+                    <span>{t("reference")}</span>
+                    <input
+                      value={paymentForm.reference}
+                      onChange={(event) => setPaymentForm((current) => ({ ...current, reference: event.target.value }))}
+                    />
+                  </label>
+                </div>
+
+                <div className="modal-actions">
+                  <button className="ghost-button" onClick={closeActionModal} type="button">
+                    Close
+                  </button>
+                  <button className="primary-button" disabled={isActionSubmitting} type="submit">
+                    {isActionSubmitting ? "Saving..." : "Record payment"}
+                  </button>
+                </div>
+              </form>
+            ) : null}
+
+            {activeAction === "reconcile" ? (
+              <form className="entry-form" onSubmit={submitReconciliation}>
+                <label>
+                  <span>{t("truck")}</span>
+                  <select
+                    value={reconcileForm.tripId}
+                    onChange={(event) => {
+                      const trip = apiTrips.find((entry) => entry.id === event.target.value);
+                      setReconcileForm({
+                        tripId: event.target.value,
+                        cashCollected: trip ? asNumber(trip.cashCollected) : 0,
+                        creditIssued: trip ? asNumber(trip.creditIssued) : 0,
+                        items: buildReconcileItems(trip)
+                      });
+                    }}
+                  >
+                    {openTrips.map((trip) => (
+                      <option key={trip.id} value={trip.id}>
+                        {trip.vehicle.plateNumber} - {trip.route}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+
+                {selectedTrip ? (
+                  <div className="trip-summary">
+                    <span>{selectedTrip.driver.fullName}</span>
+                    <span>{selectedTrip.route}</span>
+                  </div>
+                ) : null}
+
+                <div className="form-grid">
+                  <label>
+                    <span>{t("cashCollected")}</span>
+                    <input
+                      min={0}
+                      type="number"
+                      value={reconcileForm.cashCollected}
+                      onChange={(event) =>
+                        setReconcileForm((current) => ({
+                          ...current,
+                          cashCollected: Number(event.target.value) || 0
+                        }))
+                      }
+                    />
+                  </label>
+                  <label>
+                    <span>{t("creditIssued")}</span>
+                    <input
+                      min={0}
+                      type="number"
+                      value={reconcileForm.creditIssued}
+                      onChange={(event) =>
+                        setReconcileForm((current) => ({
+                          ...current,
+                          creditIssued: Number(event.target.value) || 0
+                        }))
+                      }
+                    />
+                  </label>
+                </div>
+
+                <div className="form-section">
+                  <div className="form-section-header">
+                    <strong>Loaded items</strong>
+                  </div>
+                  {reconcileForm.items.map((item, index) => (
+                    <div className="reconcile-row" key={item.itemId}>
+                      <div>
+                        <strong>{item.productName}</strong>
+                        <span>Loaded: {item.loadedQuantity}</span>
+                      </div>
+                      <label>
+                        <span>Delivered</span>
+                        <input
+                          min={0}
+                          type="number"
+                          value={item.deliveredQuantity}
+                          onChange={(event) =>
+                            setReconcileForm((current) => ({
+                              ...current,
+                              items: current.items.map((entry, entryIndex) =>
+                                entryIndex === index
+                                  ? { ...entry, deliveredQuantity: Number(event.target.value) || 0 }
+                                  : entry
+                              )
+                            }))
+                          }
+                        />
+                      </label>
+                      <label>
+                        <span>Returned</span>
+                        <input
+                          min={0}
+                          type="number"
+                          value={item.returnedQuantity}
+                          onChange={(event) =>
+                            setReconcileForm((current) => ({
+                              ...current,
+                              items: current.items.map((entry, entryIndex) =>
+                                entryIndex === index
+                                  ? { ...entry, returnedQuantity: Number(event.target.value) || 0 }
+                                  : entry
+                              )
+                            }))
+                          }
+                        />
+                      </label>
+                      <label>
+                        <span>Damaged</span>
+                        <input
+                          min={0}
+                          type="number"
+                          value={item.damagedQuantity}
+                          onChange={(event) =>
+                            setReconcileForm((current) => ({
+                              ...current,
+                              items: current.items.map((entry, entryIndex) =>
+                                entryIndex === index
+                                  ? { ...entry, damagedQuantity: Number(event.target.value) || 0 }
+                                  : entry
+                              )
+                            }))
+                          }
+                        />
+                      </label>
+                    </div>
+                  ))}
+                </div>
+
+                <div className="modal-actions">
+                  <button className="ghost-button" onClick={closeActionModal} type="button">
+                    Close
+                  </button>
+                  <button className="primary-button" disabled={isActionSubmitting} type="submit">
+                    {isActionSubmitting ? "Saving..." : "Complete reconciliation"}
+                  </button>
+                </div>
+              </form>
+            ) : null}
+          </section>
+        </div>
+      ) : null}
+    </main>
+  );
+}

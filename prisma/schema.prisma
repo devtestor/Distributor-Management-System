@@ -1,0 +1,340 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum Locale {
+  en
+  fr
+  rw
+  sw
+}
+
+enum ProductCategory {
+  BEER
+  SOFT_DRINK
+  WATER
+  OTHER
+}
+
+enum PackageType {
+  BOTTLE_CRATE
+  CAN_TRAY
+  PET_PACK
+  SINGLE_UNIT
+}
+
+enum StockMovementType {
+  PURCHASE_RECEIPT
+  SALE_ISSUE
+  TRUCK_LOAD
+  TRUCK_RETURN
+  TRANSFER_IN
+  TRANSFER_OUT
+  DAMAGE
+  LOSS
+  COUNT_ADJUSTMENT
+}
+
+enum InvoiceStatus {
+  DRAFT
+  ISSUED
+  CANCELLED
+}
+
+enum PaymentStatus {
+  UNPAID
+  PARTIAL
+  PAID
+}
+
+enum PaymentMethod {
+  CASH
+  MOBILE_MONEY
+  BANK
+  CREDIT
+}
+
+enum EmptyMovementType {
+  ISSUED_TO_CUSTOMER
+  RETURNED_BY_CUSTOMER
+  ADJUSTMENT
+  LOST
+}
+
+enum DeliveryStatus {
+  LOADING
+  ON_ROUTE
+  RECONCILIATION
+  CLOSED
+  CANCELLED
+}
+
+model Role {
+  id          String   @id @default(uuid())
+  name        String   @unique
+  description String?
+  users       User[]
+  createdAt   DateTime @default(now())
+}
+
+model User {
+  id                      String                   @id @default(uuid())
+  roleId                  String
+  role                    Role                     @relation(fields: [roleId], references: [id])
+  fullName                String
+  phone                   String?
+  email                   String?                  @unique
+  passwordHash            String
+  preferredLocale         Locale                   @default(en)
+  isActive                Boolean                  @default(true)
+  createdAt               DateTime                 @default(now())
+  stockMovements          StockMovement[]
+  invoices                Invoice[]
+  payments                Payment[]
+  emptyContainerMovements EmptyContainerMovement[]
+  drivenVehicles          Vehicle[]                @relation("VehicleDriver")
+  deliveryTrips           DeliveryTrip[]
+  expenses                Expense[]
+  auditLogs               AuditLog[]
+  productPriceHistory     ProductPriceHistory[]
+
+  @@index([roleId])
+}
+
+model Product {
+  id                      String                   @id @default(uuid())
+  sku                     String                   @unique
+  name                    String
+  brand                   String
+  category                ProductCategory
+  packageType             PackageType
+  unitSize                String
+  unitCost                Decimal                  @db.Decimal(14, 2)
+  unitPrice               Decimal                  @db.Decimal(14, 2)
+  reorderLevel            Int                      @default(0)
+  tracksEmpties           Boolean                  @default(false)
+  isActive                Boolean                  @default(true)
+  createdAt               DateTime                 @default(now())
+  stockMovements          StockMovement[]
+  invoiceItems            InvoiceItem[]
+  emptyContainerMovements EmptyContainerMovement[]
+  deliveryTripItems       DeliveryTripItem[]
+  priceHistory            ProductPriceHistory[]
+
+  @@index([category])
+  @@index([isActive])
+}
+
+model ProductPriceHistory {
+  id            String   @id @default(uuid())
+  productId     String
+  product       Product  @relation(fields: [productId], references: [id])
+  previousCost  Decimal? @db.Decimal(14, 2)
+  newCost       Decimal  @db.Decimal(14, 2)
+  previousPrice Decimal? @db.Decimal(14, 2)
+  newPrice      Decimal  @db.Decimal(14, 2)
+  changedById   String?
+  changedBy     User?    @relation(fields: [changedById], references: [id])
+  changeReason  String?
+  createdAt     DateTime @default(now())
+
+  @@index([productId])
+  @@index([changedById])
+  @@index([createdAt])
+}
+
+model Warehouse {
+  id             String          @id @default(uuid())
+  name           String
+  location       String?
+  isActive       Boolean         @default(true)
+  createdAt      DateTime        @default(now())
+  stockMovements StockMovement[]
+}
+
+model Customer {
+  id                      String                   @id @default(uuid())
+  name                    String
+  phone                   String?
+  route                   String?
+  location                String?
+  creditLimit             Decimal                  @default(0) @db.Decimal(14, 2)
+  isActive                Boolean                  @default(true)
+  createdAt               DateTime                 @default(now())
+  invoices                Invoice[]
+  payments                Payment[]
+  emptyContainerMovements EmptyContainerMovement[]
+
+  @@index([route])
+  @@index([isActive])
+}
+
+model StockMovement {
+  id            String            @id @default(uuid())
+  productId     String
+  product       Product           @relation(fields: [productId], references: [id])
+  warehouseId   String
+  warehouse     Warehouse         @relation(fields: [warehouseId], references: [id])
+  movementType  StockMovementType
+  quantity      Int
+  unitCost      Decimal?          @db.Decimal(14, 2)
+  referenceType String?
+  referenceId   String?
+  note          String?
+  createdById   String
+  createdBy     User              @relation(fields: [createdById], references: [id])
+  createdAt     DateTime          @default(now())
+
+  @@index([productId])
+  @@index([warehouseId])
+  @@index([movementType])
+  @@index([createdAt])
+}
+
+model Invoice {
+  id            String        @id @default(uuid())
+  customerId    String
+  customer      Customer      @relation(fields: [customerId], references: [id])
+  invoiceNumber String        @unique
+  status        InvoiceStatus @default(DRAFT)
+  paymentStatus PaymentStatus @default(UNPAID)
+  totalAmount   Decimal       @db.Decimal(14, 2)
+  createdById   String
+  createdBy     User          @relation(fields: [createdById], references: [id])
+  createdAt     DateTime      @default(now())
+  items         InvoiceItem[]
+  payments      Payment[]
+
+  @@index([customerId])
+  @@index([createdAt])
+  @@index([paymentStatus])
+}
+
+model InvoiceItem {
+  id             String  @id @default(uuid())
+  invoiceId      String
+  invoice        Invoice @relation(fields: [invoiceId], references: [id])
+  productId      String
+  product        Product @relation(fields: [productId], references: [id])
+  quantity       Int
+  unitPrice      Decimal @db.Decimal(14, 2)
+  discountAmount Decimal @default(0) @db.Decimal(14, 2)
+  lineTotal      Decimal @db.Decimal(14, 2)
+
+  @@index([invoiceId])
+  @@index([productId])
+}
+
+model Payment {
+  id           String        @id @default(uuid())
+  customerId   String
+  customer     Customer      @relation(fields: [customerId], references: [id])
+  invoiceId    String?
+  invoice      Invoice?      @relation(fields: [invoiceId], references: [id])
+  method       PaymentMethod
+  amount       Decimal       @db.Decimal(14, 2)
+  reference    String?
+  receivedById String
+  receivedBy   User          @relation(fields: [receivedById], references: [id])
+  receivedAt   DateTime      @default(now())
+
+  @@index([customerId])
+  @@index([invoiceId])
+  @@index([receivedAt])
+}
+
+model EmptyContainerMovement {
+  id            String            @id @default(uuid())
+  customerId    String
+  customer      Customer          @relation(fields: [customerId], references: [id])
+  productId     String?
+  product       Product?          @relation(fields: [productId], references: [id])
+  movementType  EmptyMovementType
+  quantity      Int
+  referenceType String?
+  referenceId   String?
+  createdById   String
+  createdBy     User              @relation(fields: [createdById], references: [id])
+  createdAt     DateTime          @default(now())
+
+  @@index([customerId])
+  @@index([productId])
+  @@index([createdAt])
+}
+
+model Vehicle {
+  id          String         @id @default(uuid())
+  plateNumber String         @unique
+  driverId    String?
+  driver      User?          @relation("VehicleDriver", fields: [driverId], references: [id])
+  isActive    Boolean        @default(true)
+  trips       DeliveryTrip[]
+}
+
+model DeliveryTrip {
+  id            String             @id @default(uuid())
+  vehicleId     String
+  vehicle       Vehicle            @relation(fields: [vehicleId], references: [id])
+  driverId      String
+  driver        User               @relation(fields: [driverId], references: [id])
+  route         String
+  status        DeliveryStatus     @default(LOADING)
+  cashCollected Decimal            @default(0) @db.Decimal(14, 2)
+  creditIssued  Decimal            @default(0) @db.Decimal(14, 2)
+  loadedAt      DateTime?
+  returnedAt    DateTime?
+  createdAt     DateTime           @default(now())
+  items         DeliveryTripItem[]
+
+  @@index([driverId])
+  @@index([status])
+  @@index([createdAt])
+}
+
+model DeliveryTripItem {
+  id                String       @id @default(uuid())
+  tripId            String
+  trip              DeliveryTrip @relation(fields: [tripId], references: [id])
+  productId         String
+  product           Product      @relation(fields: [productId], references: [id])
+  loadedQuantity    Int
+  deliveredQuantity Int          @default(0)
+  returnedQuantity  Int          @default(0)
+  damagedQuantity   Int          @default(0)
+
+  @@index([tripId])
+  @@index([productId])
+}
+
+model Expense {
+  id        String   @id @default(uuid())
+  category  String
+  amount    Decimal  @db.Decimal(14, 2)
+  note      String?
+  spentById String?
+  spentBy   User?    @relation(fields: [spentById], references: [id])
+  spentAt   DateTime @default(now())
+
+  @@index([category])
+  @@index([spentAt])
+}
+
+model AuditLog {
+  id        String   @id @default(uuid())
+  userId    String?
+  user      User?    @relation(fields: [userId], references: [id])
+  action    String
+  entity    String
+  entityId  String?
+  metadata  Json?
+  createdAt DateTime @default(now())
+
+  @@index([userId])
+  @@index([entity])
+  @@index([createdAt])
+}
