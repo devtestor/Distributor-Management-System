@@ -355,14 +355,16 @@ Acceptance criteria:
 14. `GET /customers`
 15. `POST /customers`
 16. `GET /customers/:id/balance`
-17. `POST /orders`
-18. `POST /invoices`
-15. `POST /payments`
-16. `POST /deliveries/trips`
-17. `POST /deliveries/trips/:id/load`
-18. `POST /deliveries/trips/:id/reconcile`
-19. `GET /reports/sales`
-20. `GET /reports/stock`
+17. `GET /customers/:id/account-history`
+18. `GET /customers/debt-aging`
+19. `POST /orders`
+20. `POST /invoices`
+21. `POST /payments`
+22. `POST /deliveries/trips`
+23. `POST /deliveries/trips/:id/load`
+24. `POST /deliveries/trips/:id/reconcile`
+25. `GET /reports/sales`
+26. `GET /reports/stock`
 21. `GET /reports/debt`
 22. `GET /reports/empties`
 
@@ -529,8 +531,13 @@ Current status:
 
 - Customer list/create endpoints have been added.
 - Customer balance endpoint has been added.
+- Customer account history endpoint has been added.
+- Debt aging endpoint has been added.
 - Invoice list/detail/create endpoints have been added.
+- Invoice creation deducts stock through stock movement records.
+- Invoice creation enforces customer credit limits unless owner/admin approves an override.
 - Payment list/create endpoints have been added.
+- Invoice-specific payments cannot exceed the invoice balance.
 
 ## Milestone 6: Empty Container Tracking
 

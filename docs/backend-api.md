@@ -64,6 +64,8 @@ Authenticated:
 - `GET /api/customers`
 - `POST /api/customers`
 - `GET /api/customers/:id/balance`
+- `GET /api/customers/:id/account-history`
+- `GET /api/customers/debt-aging`
 - `GET /api/warehouses`
 - `GET /api/warehouses/:id/stock`
 - `GET /api/stock/movements`
@@ -87,6 +89,9 @@ Authenticated:
 - Bank and mobile money payments require a payment reference.
 - Invoice totals are calculated from current product prices.
 - Initial invoice payment cannot exceed invoice total.
+- Invoice creation deducts warehouse inventory through stock movement records.
+- Credit-limit overrides require owner/admin approval.
+- Invoice-specific payments cannot exceed the remaining invoice balance.
 - Customer balance is derived from invoices minus payments.
 - Empty container balance is derived from empty container movements.
 - Warehouse stock is derived from stock movements.

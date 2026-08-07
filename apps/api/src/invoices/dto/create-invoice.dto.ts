@@ -1,6 +1,6 @@
 import { PaymentMethod } from "@prisma/client";
 import { Type } from "class-transformer";
-import { ArrayMinSize, IsArray, IsEnum, IsInt, IsOptional, IsString, Min, ValidateNested } from "class-validator";
+import { ArrayMinSize, IsArray, IsBoolean, IsEnum, IsInt, IsOptional, IsString, Min, ValidateNested } from "class-validator";
 
 class CreateInvoiceItemDto {
   @IsString()
@@ -38,4 +38,16 @@ export class CreateInvoiceDto {
   @IsString()
   @IsOptional()
   paymentReference?: string;
+
+  @IsString()
+  @IsOptional()
+  warehouseId?: string;
+
+  @IsBoolean()
+  @IsOptional()
+  allowCreditLimitOverride?: boolean;
+
+  @IsBoolean()
+  @IsOptional()
+  allowNegativeStock?: boolean;
 }

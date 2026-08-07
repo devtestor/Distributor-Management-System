@@ -31,6 +31,10 @@ export class PaymentsService {
       if (invoice.customerId !== dto.customerId) {
         throw new BadRequestException("Invoice does not belong to customer");
       }
+      const paid = invoice.payments.reduce((sum, payment) => sum + Number(payment.amount), 0);
+      if (paid + dto.amount > Number(invoice.totalAmount)) {
+        throw new BadRequestException("Payment exceeds invoice balance");
+      }
     }
 
     const payment = await this.prisma.payment.create({

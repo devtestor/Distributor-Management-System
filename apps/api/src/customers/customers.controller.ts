@@ -18,8 +18,19 @@ export class CustomersController {
     return this.customersService.create(dto);
   }
 
+  @Roles("OWNER", "ADMIN", "ACCOUNTANT")
+  @Get("debt-aging")
+  debtAging() {
+    return this.customersService.getDebtAging();
+  }
+
   @Get(":id/balance")
   balance(@Param("id") id: string) {
     return this.customersService.getBalance(id);
+  }
+
+  @Get(":id/account-history")
+  accountHistory(@Param("id") id: string) {
+    return this.customersService.getAccountHistory(id);
   }
 }

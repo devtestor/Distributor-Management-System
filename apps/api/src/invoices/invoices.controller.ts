@@ -21,6 +21,6 @@ export class InvoicesController {
   @Roles("OWNER", "ADMIN", "ACCOUNTANT", "SALESPERSON")
   @Post()
   create(@Body() dto: CreateInvoiceDto, @Req() request: AuthenticatedRequest) {
-    return this.invoicesService.create(dto, request.user.id);
+    return this.invoicesService.create(dto, request.user.id, request.user.role);
   }
 }

@@ -126,6 +126,30 @@ export type ApiCustomerBalance = {
   emptyBalance: number;
 };
 
+export type ApiCustomerAccountHistory = {
+  customer: ApiCustomer;
+  entries: Array<{
+    id: string;
+    type: "INVOICE" | "PAYMENT";
+    reference: string;
+    debit: number;
+    credit: number;
+    status: string;
+    occurredAt: string;
+    runningBalance: number;
+  }>;
+};
+
+export type ApiDebtAgingEntry = {
+  invoiceId: string;
+  invoiceNumber: string;
+  customer: ApiCustomer;
+  invoiceDate: string;
+  ageDays: number;
+  outstanding: number;
+  bucket: "0_30" | "31_60" | "61_90" | "90_PLUS";
+};
+
 export type ApiPayment = {
   id: string;
   customerId: string;
@@ -322,6 +346,18 @@ export function getCustomerBalance(accessToken: string, customerId: string) {
   });
 }
 
+export function getCustomerAccountHistory(accessToken: string, customerId: string) {
+  return request<ApiCustomerAccountHistory>(`/customers/${customerId}/account-history`, {
+    headers: authHeaders(accessToken)
+  });
+}
+
+export function getDebtAging(accessToken: string) {
+  return request<ApiDebtAgingEntry[]>("/customers/debt-aging", {
+    headers: authHeaders(accessToken)
+  });
+}
+
 export function getPayments(accessToken: string) {
   return request<ApiPayment[]>("/payments", {
     headers: authHeaders(accessToken)
@@ -387,6 +423,9 @@ export function createInvoice(
     initialPaymentMethod?: "CASH" | "BANK" | "MOBILE_MONEY" | "CREDIT";
     initialPaymentAmount?: number;
     paymentReference?: string;
+    warehouseId?: string;
+    allowCreditLimitOverride?: boolean;
+    allowNegativeStock?: boolean;
   }
 ) {
   return request("/invoices", {
