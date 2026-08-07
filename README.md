@@ -1,59 +1,104 @@
-# Human Concept ERP
+# Distributor Management System
 
-Multilingual inventory and business monitoring system for a beverage distributor.
+## System Description
 
-## Current scope
+The Distributor Management System is a web platform for beverage distributors that need to control stock, customer orders, deliveries, empty bottles and crates, payments, customer debt, expenses, and business performance.
 
-This first build contains a Next.js dashboard prototype for a BRALIRWA-style distributor. It supports:
+The system is designed for BRALIRWA-style distribution operations. It helps distributors manage products received from BRALIRWA, monitor warehouse operations, reconcile driver deliveries, track customer payments, and generate operational and financial reports.
+
+The system supports multiple roles, including owners, administrators, warehouse managers, sales representatives, drivers, and accountants. Each user has access to the functions relevant to their responsibility through role-based access control.
+
+## Core Business Question
+
+The product is built to answer:
+
+> Where is my stock, where is my money, who owes me, who has my crates, and am I making a profit?
+
+## Current Scope
 
 - English, French, Kinyarwanda, and Swahili UI switching
+- Login/logout and JWT authentication
+- Role-based navigation and protected backend endpoints
 - Owner KPI dashboard
+- Product and price management
+- Product price history
 - Inventory visibility with reorder alerts
+- Stock receiving and stock adjustment endpoints
 - Customer debt and empty container balances
 - Delivery and driver reconciliation overview
 - Payment monitoring
-- Backend architecture and PostgreSQL schema notes
+- User management and account security
+- Audit trail for sensitive account and product actions
 
-## Run locally
+## Technology
+
+- Frontend: Next.js, React, TypeScript
+- Backend: NestJS, TypeScript
+- Database: PostgreSQL
+- ORM: Prisma
+- Authentication: JWT
+- Styling: CSS modules/global CSS
+
+## Run Locally
+
+Install dependencies:
 
 ```bash
 npm install
-npm run dev
 ```
 
-Then open `http://localhost:3000`.
-
-## Run the API locally
+Create environment variables:
 
 ```bash
 cp .env.example .env
-docker compose up -d postgres
+```
+
+Run migrations and seed data:
+
+```bash
 npm run prisma:migrate
 npm run prisma:seed
+```
+
+Start the API:
+
+```bash
 npm run api:dev
 ```
 
-The API runs at `http://localhost:4000/api`.
-
-If this Docker installation does not include the Compose plugin, start PostgreSQL with plain Docker:
+Start the frontend:
 
 ```bash
-docker run --name human-concept-erp-postgres \
-  -e POSTGRES_DB=human_concept_erp \
-  -e POSTGRES_USER=postgres \
-  -e POSTGRES_PASSWORD=postgres \
-  -p 5432:5432 \
-  -d postgres:16-alpine
+npm run dev
 ```
 
-The dashboard can log in with the seeded owner account after migration and seed:
+Default local URLs:
+
+- Frontend: `http://localhost:3000`
+- API: `http://localhost:4000/api`
+
+Seed owner account:
 
 - Email: `owner@example.com`
 - Password: `ChangeMe123!`
 
-## Next build phase
+## Useful Commands
 
-The next phase should add the NestJS API, PostgreSQL database, authentication, and real stock movement workflows.
+```bash
+npm run lint
+npm run typecheck
+npm run build
+npm run api:build
+npm run prisma:generate
+```
 
-See [docs/implementation-plan.md](docs/implementation-plan.md) for the full product build plan.
-See [docs/backend-api.md](docs/backend-api.md) for the current backend API status.
+## Documentation
+
+- [Implementation plan](docs/implementation-plan.md)
+- [Backend API status](docs/backend-api.md)
+- [Architecture notes](docs/architecture.md)
+- [Database schema notes](docs/database-schema.sql)
+
+## License
+
+This project is licensed under the MIT License. See [LICENSE](LICENSE).
