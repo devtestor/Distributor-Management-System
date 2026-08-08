@@ -346,7 +346,10 @@ async function request<T>(path: string, options: RequestInit = {}) {
   });
 
   if (!response.ok) {
-    const body = await response.json().catch(() => ({ message: "Request failed" }));
+    const body = await response.json().catch(async () => {
+      const message = await response.text().catch(() => "Request failed");
+      return { message: message || `Request failed with status ${response.status}` };
+    });
     throw new Error(Array.isArray(body.message) ? body.message.join(", ") : body.message ?? "Request failed");
   }
 

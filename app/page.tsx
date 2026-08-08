@@ -147,6 +147,14 @@ function money(value: number) {
   return currencyFormatter.format(value);
 }
 
+async function optionalLiveData<T>(request: Promise<T>, fallback: T) {
+  try {
+    return await request;
+  } catch {
+    return fallback;
+  }
+}
+
 function formatToday(locale: Locale) {
   const localeMap: Record<Locale, string> = {
     en: "en-RW",
@@ -474,28 +482,32 @@ export default function Home() {
         const canReadDeliveryRecords =
           profile.role === "OWNER" || profile.role === "ADMIN" || profile.role === "WAREHOUSE_MANAGER" || profile.role === "DRIVER";
         const canReadVehicles = profile.role === "OWNER" || profile.role === "ADMIN" || profile.role === "WAREHOUSE_MANAGER";
-        const dashboard = canReadOwnerDashboard ? await getOwnerDashboard(token) : null;
-        const rawProducts = canReadProducts ? await getProducts(token) : [];
-        const stockItems = canReadInventory ? await getWarehouseStock(token, MAIN_WAREHOUSE_ID) : [];
-        const rawCustomers = canReadCustomers ? await getCustomers(token) : [];
-        const rawPayments = canReadFinancialRecords ? await getPayments(token) : [];
-        const rawTrips = canReadDeliveryRecords ? await getDeliveryTrips(token) : [];
-        const rawVehicles = canReadVehicles ? await getVehicles(token) : [];
-        const rawInvoices = canReadFinancialRecords ? await getInvoices(token) : [];
+        const dashboard = canReadOwnerDashboard ? await optionalLiveData(getOwnerDashboard(token), null) : null;
+        const rawProducts = canReadProducts ? await optionalLiveData(getProducts(token), []) : [];
+        const stockItems = canReadInventory ? await optionalLiveData(getWarehouseStock(token, MAIN_WAREHOUSE_ID), []) : [];
+        const rawCustomers = canReadCustomers ? await optionalLiveData(getCustomers(token), []) : [];
+        const rawPayments = canReadFinancialRecords ? await optionalLiveData(getPayments(token), []) : [];
+        const rawTrips = canReadDeliveryRecords ? await optionalLiveData(getDeliveryTrips(token), []) : [];
+        const rawVehicles = canReadVehicles ? await optionalLiveData(getVehicles(token), []) : [];
+        const rawInvoices = canReadFinancialRecords ? await optionalLiveData(getInvoices(token), []) : [];
 
         const canManageUsers = profile.role === "OWNER" || profile.role === "ADMIN";
         const isOwner = profile.role === "OWNER";
         const canReadReports = profile.role === "OWNER" || profile.role === "ACCOUNTANT";
-        const rawUsers = canManageUsers ? await getUsers(token) : [];
-        const rawRoles = canManageUsers ? await getRoles(token) : [];
-        const rawAuditLogs = isOwner ? await getAuditLogs(token) : [];
-        const rawSalesReport = canReadReports ? await getSalesReport(token) : null;
-        const rawStockReport = canReadReports ? await getStockReport(token) : null;
-        const rawDebtReport = canReadReports ? await getDebtReport(token) : null;
-        const rawEmptiesReport = canReadReports ? await getEmptiesReport(token) : null;
+        const rawUsers = canManageUsers ? await optionalLiveData(getUsers(token), []) : [];
+        const rawRoles = canManageUsers ? await optionalLiveData(getRoles(token), []) : [];
+        const rawAuditLogs = isOwner ? await optionalLiveData(getAuditLogs(token), []) : [];
+        const rawSalesReport = canReadReports ? await optionalLiveData(getSalesReport(token), null) : null;
+        const rawStockReport = canReadReports ? await optionalLiveData(getStockReport(token), null) : null;
+        const rawDebtReport = canReadReports ? await optionalLiveData(getDebtReport(token), null) : null;
+        const rawEmptiesReport = canReadReports ? await optionalLiveData(getEmptiesReport(token), null) : null;
         const balances: Customer[] = [];
         for (const customer of rawCustomers) {
-          const balance = await getCustomerBalance(token, customer.id);
+          const balance = await optionalLiveData(getCustomerBalance(token, customer.id), {
+            customer,
+            outstanding: 0,
+            emptyBalance: 0
+          });
 
           balances.push({
             id: customer.id,
