@@ -1,4 +1,5 @@
-import { Body, Controller, Get, Inject, Param, Post } from "@nestjs/common";
+import { Body, Controller, Get, Inject, Param, Post, Query } from "@nestjs/common";
+import type { PaginationQuery } from "../common/pagination";
 import { Roles } from "../common/roles.decorator";
 import { CreateCustomerDto } from "./dto/create-customer.dto";
 import { CustomersService } from "./customers.service";
@@ -9,8 +10,8 @@ export class CustomersController {
 
   @Roles("OWNER", "ADMIN", "ACCOUNTANT", "SALESPERSON")
   @Get()
-  list() {
-    return this.customersService.list();
+  list(@Query() query: PaginationQuery) {
+    return this.customersService.list(query);
   }
 
   @Roles("OWNER", "ADMIN", "ACCOUNTANT", "SALESPERSON")

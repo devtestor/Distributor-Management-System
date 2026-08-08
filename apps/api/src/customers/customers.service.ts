@@ -1,15 +1,17 @@
 import { Inject, Injectable, NotFoundException } from "@nestjs/common";
 import { EmptyMovementType, InvoiceStatus } from "@prisma/client";
 import { PrismaService } from "../prisma/prisma.service";
+import { paginationArgs, type PaginationQuery } from "../common/pagination";
 import { CreateCustomerDto } from "./dto/create-customer.dto";
 
 @Injectable()
 export class CustomersService {
   constructor(@Inject(PrismaService) private readonly prisma: PrismaService) {}
 
-  list() {
+  list(query?: PaginationQuery) {
     return this.prisma.customer.findMany({
-      orderBy: { name: "asc" }
+      orderBy: { name: "asc" },
+      ...paginationArgs(query)
     });
   }
 

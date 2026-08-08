@@ -1,6 +1,7 @@
 import { BadRequestException, ConflictException, Inject, Injectable, NotFoundException } from "@nestjs/common";
 import { Prisma } from "@prisma/client";
 import { PrismaService } from "../prisma/prisma.service";
+import { paginationArgs, type PaginationQuery } from "../common/pagination";
 import { CreateProductDto } from "./dto/create-product.dto";
 import { UpdateProductDto } from "./dto/update-product.dto";
 
@@ -8,9 +9,10 @@ import { UpdateProductDto } from "./dto/update-product.dto";
 export class ProductsService {
   constructor(@Inject(PrismaService) private readonly prisma: PrismaService) {}
 
-  async list() {
+  async list(query?: PaginationQuery) {
     return this.prisma.product.findMany({
-      orderBy: { name: "asc" }
+      orderBy: { name: "asc" },
+      ...paginationArgs(query)
     });
   }
 

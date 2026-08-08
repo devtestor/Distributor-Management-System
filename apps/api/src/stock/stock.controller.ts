@@ -1,5 +1,6 @@
-import { Body, Controller, Get, Inject, Param, Post, Req } from "@nestjs/common";
+import { Body, Controller, Get, Inject, Param, Post, Query, Req } from "@nestjs/common";
 import type { AuthenticatedRequest } from "../common/authenticated-request";
+import type { PaginationQuery } from "../common/pagination";
 import { Roles } from "../common/roles.decorator";
 import { StockCountDto } from "./dto/stock-count.dto";
 import { StockMovementDto } from "./dto/stock-movement.dto";
@@ -18,8 +19,8 @@ export class StockController {
 
   @Roles("OWNER", "ADMIN", "WAREHOUSE_MANAGER")
   @Get("stock/movements")
-  movements() {
-    return this.stockService.listMovements();
+  movements(@Query() query: PaginationQuery) {
+    return this.stockService.listMovements(query);
   }
 
   @Roles("OWNER", "ADMIN", "WAREHOUSE_MANAGER")

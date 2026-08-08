@@ -2,6 +2,7 @@ import { BadRequestException, ConflictException, ForbiddenException, Inject, Inj
 import { Prisma } from "@prisma/client";
 import bcrypt from "bcryptjs";
 import { PrismaService } from "../prisma/prisma.service";
+import { paginationArgs, type PaginationQuery } from "../common/pagination";
 import { ChangePasswordDto } from "./dto/change-password.dto";
 import { CreateUserDto } from "./dto/create-user.dto";
 import { ResetPasswordDto } from "./dto/reset-password.dto";
@@ -17,7 +18,7 @@ export class UsersService {
     });
   }
 
-  listAuditLogs() {
+  listAuditLogs(query?: PaginationQuery) {
     return this.prisma.auditLog.findMany({
       include: {
         user: {
@@ -25,14 +26,15 @@ export class UsersService {
         }
       },
       orderBy: { createdAt: "desc" },
-      take: 100
+      ...paginationArgs(query, 100, 500)
     });
   }
 
-  async listUsers() {
+  async listUsers(query?: PaginationQuery) {
     const users = await this.prisma.user.findMany({
       include: { role: true },
-      orderBy: { createdAt: "asc" }
+      orderBy: { createdAt: "asc" },
+      ...paginationArgs(query)
     });
 
     return users.map((user) => ({

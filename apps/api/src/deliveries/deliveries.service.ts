@@ -1,6 +1,7 @@
 import { BadRequestException, ForbiddenException, Inject, Injectable, NotFoundException } from "@nestjs/common";
 import { DeliveryStatus, Prisma, StockMovementType } from "@prisma/client";
 import { PrismaService } from "../prisma/prisma.service";
+import { paginationArgs, type PaginationQuery } from "../common/pagination";
 import { CreateDeliveryTripDto } from "./dto/create-delivery-trip.dto";
 import { ReconcileDeliveryTripDto } from "./dto/reconcile-delivery-trip.dto";
 
@@ -8,11 +9,12 @@ import { ReconcileDeliveryTripDto } from "./dto/reconcile-delivery-trip.dto";
 export class DeliveriesService {
   constructor(@Inject(PrismaService) private readonly prisma: PrismaService) {}
 
-  list(actorUserId: string, actorRole: string) {
+  list(actorUserId: string, actorRole: string, query?: PaginationQuery) {
     return this.prisma.deliveryTrip.findMany({
       where: actorRole === "DRIVER" ? { driverId: actorUserId } : undefined,
       include: { driver: true, vehicle: true, items: { include: { product: true } } },
-      orderBy: { createdAt: "desc" }
+      orderBy: { createdAt: "desc" },
+      ...paginationArgs(query)
     });
   }
 

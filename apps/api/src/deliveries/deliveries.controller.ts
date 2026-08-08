@@ -1,5 +1,6 @@
-import { Body, Controller, Get, Inject, Param, Post, Req } from "@nestjs/common";
+import { Body, Controller, Get, Inject, Param, Post, Query, Req } from "@nestjs/common";
 import type { AuthenticatedRequest } from "../common/authenticated-request";
+import type { PaginationQuery } from "../common/pagination";
 import { Roles } from "../common/roles.decorator";
 import { CreateDeliveryTripDto } from "./dto/create-delivery-trip.dto";
 import { ReconcileDeliveryTripDto } from "./dto/reconcile-delivery-trip.dto";
@@ -11,8 +12,8 @@ export class DeliveriesController {
 
   @Roles("OWNER", "ADMIN", "WAREHOUSE_MANAGER", "DRIVER")
   @Get()
-  list(@Req() request: AuthenticatedRequest) {
-    return this.deliveriesService.list(request.user.id, request.user.role);
+  list(@Req() request: AuthenticatedRequest, @Query() query: PaginationQuery) {
+    return this.deliveriesService.list(request.user.id, request.user.role, query);
   }
 
   @Roles("OWNER", "ADMIN", "WAREHOUSE_MANAGER")

@@ -1,16 +1,18 @@
 import { BadRequestException, Inject, Injectable, NotFoundException } from "@nestjs/common";
 import { PaymentMethod, PaymentStatus, Prisma } from "@prisma/client";
 import { PrismaService } from "../prisma/prisma.service";
+import { paginationArgs, type PaginationQuery } from "../common/pagination";
 import { CreatePaymentDto } from "./dto/create-payment.dto";
 
 @Injectable()
 export class PaymentsService {
   constructor(@Inject(PrismaService) private readonly prisma: PrismaService) {}
 
-  list() {
+  list(query?: PaginationQuery) {
     return this.prisma.payment.findMany({
       include: { customer: true, invoice: true },
-      orderBy: { receivedAt: "desc" }
+      orderBy: { receivedAt: "desc" },
+      ...paginationArgs(query)
     });
   }
 

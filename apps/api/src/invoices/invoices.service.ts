@@ -1,6 +1,7 @@
 import { BadRequestException, ForbiddenException, Inject, Injectable, NotFoundException } from "@nestjs/common";
 import { InvoiceStatus, PaymentMethod, PaymentStatus, Prisma, StockMovementType } from "@prisma/client";
 import { PrismaService } from "../prisma/prisma.service";
+import { paginationArgs, type PaginationQuery } from "../common/pagination";
 import { CreateInvoiceDto } from "./dto/create-invoice.dto";
 
 const mainWarehouseId = "00000000-0000-0000-0000-000000000001";
@@ -16,10 +17,11 @@ type InvoiceTransaction = Prisma.TransactionClient;
 export class InvoicesService {
   constructor(@Inject(PrismaService) private readonly prisma: PrismaService) {}
 
-  list() {
+  list(query?: PaginationQuery) {
     return this.prisma.invoice.findMany({
       include: { customer: true, items: { include: { product: true } }, payments: true },
-      orderBy: { createdAt: "desc" }
+      orderBy: { createdAt: "desc" },
+      ...paginationArgs(query)
     });
   }
 

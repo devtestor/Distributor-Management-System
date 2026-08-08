@@ -2,6 +2,7 @@ import { BadRequestException, ForbiddenException, Inject, Injectable, NotFoundEx
 import { randomUUID } from "crypto";
 import { Prisma, StockMovementType } from "@prisma/client";
 import { PrismaService } from "../prisma/prisma.service";
+import { paginationArgs, type PaginationQuery } from "../common/pagination";
 import { StockCountDto } from "./dto/stock-count.dto";
 import { StockMovementDto } from "./dto/stock-movement.dto";
 import { StockTransferDto } from "./dto/stock-transfer.dto";
@@ -29,7 +30,7 @@ export class StockService {
     });
   }
 
-  listMovements() {
+  listMovements(query?: PaginationQuery) {
     return this.prisma.stockMovement.findMany({
       include: {
         product: true,
@@ -39,7 +40,7 @@ export class StockService {
         }
       },
       orderBy: { createdAt: "desc" },
-      take: 100
+      ...paginationArgs(query, 100, 500)
     });
   }
 

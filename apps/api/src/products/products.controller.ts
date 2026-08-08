@@ -1,5 +1,6 @@
-import { Body, Controller, Delete, Get, Inject, Param, Patch, Post, Req } from "@nestjs/common";
+import { Body, Controller, Delete, Get, Inject, Param, Patch, Post, Query, Req } from "@nestjs/common";
 import type { AuthenticatedRequest } from "../common/authenticated-request";
+import type { PaginationQuery } from "../common/pagination";
 import { Roles } from "../common/roles.decorator";
 import { CreateProductDto } from "./dto/create-product.dto";
 import { UpdateProductDto } from "./dto/update-product.dto";
@@ -11,8 +12,8 @@ export class ProductsController {
 
   @Roles("OWNER", "ADMIN", "WAREHOUSE_MANAGER", "SALESPERSON")
   @Get()
-  list() {
-    return this.productsService.list();
+  list(@Query() query: PaginationQuery) {
+    return this.productsService.list(query);
   }
 
   @Roles("OWNER", "ADMIN")

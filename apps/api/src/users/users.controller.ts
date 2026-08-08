@@ -1,5 +1,6 @@
-import { Body, Controller, Delete, Get, Inject, Param, Patch, Post, Req } from "@nestjs/common";
+import { Body, Controller, Delete, Get, Inject, Param, Patch, Post, Query, Req } from "@nestjs/common";
 import type { AuthenticatedRequest } from "../common/authenticated-request";
+import type { PaginationQuery } from "../common/pagination";
 import { Roles } from "../common/roles.decorator";
 import { ChangePasswordDto } from "./dto/change-password.dto";
 import { CreateUserDto } from "./dto/create-user.dto";
@@ -13,8 +14,8 @@ export class UsersController {
 
   @Get("users")
   @Roles("OWNER", "ADMIN")
-  list() {
-    return this.usersService.listUsers();
+  list(@Query() query: PaginationQuery) {
+    return this.usersService.listUsers(query);
   }
 
   @Get("users/roles")
@@ -25,8 +26,8 @@ export class UsersController {
 
   @Get("audit-logs")
   @Roles("OWNER")
-  auditLogs() {
-    return this.usersService.listAuditLogs();
+  auditLogs(@Query() query: PaginationQuery) {
+    return this.usersService.listAuditLogs(query);
   }
 
   @Post("users")
