@@ -1,4 +1,5 @@
-import { Body, Controller, Get, Inject, Param, Post } from "@nestjs/common";
+import { Body, Controller, Get, Inject, Param, Post, Req } from "@nestjs/common";
+import type { AuthenticatedRequest } from "../common/authenticated-request";
 import { Roles } from "../common/roles.decorator";
 import { CreateDeliveryTripDto } from "./dto/create-delivery-trip.dto";
 import { ReconcileDeliveryTripDto } from "./dto/reconcile-delivery-trip.dto";
@@ -13,15 +14,20 @@ export class DeliveriesController {
     return this.deliveriesService.list();
   }
 
+  @Get("vehicles")
+  vehicles() {
+    return this.deliveriesService.listVehicles();
+  }
+
   @Roles("OWNER", "ADMIN", "WAREHOUSE_MANAGER")
   @Post()
-  create(@Body() dto: CreateDeliveryTripDto) {
-    return this.deliveriesService.create(dto);
+  create(@Body() dto: CreateDeliveryTripDto, @Req() request: AuthenticatedRequest) {
+    return this.deliveriesService.create(dto, request.user.id, request.user.role);
   }
 
   @Roles("OWNER", "ADMIN", "WAREHOUSE_MANAGER", "DRIVER")
   @Post(":id/reconcile")
-  reconcile(@Param("id") id: string, @Body() dto: ReconcileDeliveryTripDto) {
-    return this.deliveriesService.reconcile(id, dto);
+  reconcile(@Param("id") id: string, @Body() dto: ReconcileDeliveryTripDto, @Req() request: AuthenticatedRequest) {
+    return this.deliveriesService.reconcile(id, dto, request.user.id);
   }
 }

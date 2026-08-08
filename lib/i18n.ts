@@ -70,6 +70,7 @@ export const dictionary = {
     quickActions: "Quick actions",
     receiveStock: "Receive BRALIRWA stock",
     createInvoice: "Create customer invoice",
+    createDeliveryTrip: "Create delivery trip",
     reconcileTruck: "Reconcile truck",
     recordPayment: "Record payment",
     language: "Language",
@@ -137,7 +138,13 @@ export const dictionary = {
     productCreated: "Product created.",
     productUpdated: "Product updated.",
     productDeactivated: "Product deactivated.",
-    productReactivated: "Product reactivated."
+    productReactivated: "Product reactivated.",
+    deliveryTripCreated: "Delivery trip created.",
+    loadedItems: "Loaded items",
+    addItem: "Add item",
+    quantity: "Quantity",
+    remove: "Remove",
+    allowNegativeStock: "Allow negative stock"
   },
   fr: {
     appName: "Controle Distributeur",
@@ -201,6 +208,7 @@ export const dictionary = {
     quickActions: "Actions rapides",
     receiveStock: "Recevoir stock BRALIRWA",
     createInvoice: "Creer facture client",
+    createDeliveryTrip: "Creer une livraison",
     reconcileTruck: "Cloturer camion",
     recordPayment: "Enregistrer paiement",
     language: "Langue",
@@ -268,7 +276,13 @@ export const dictionary = {
     productCreated: "Produit cree.",
     productUpdated: "Produit mis a jour.",
     productDeactivated: "Produit desactive.",
-    productReactivated: "Produit reactive."
+    productReactivated: "Produit reactive.",
+    deliveryTripCreated: "Livraison creee.",
+    loadedItems: "Articles charges",
+    addItem: "Ajouter",
+    quantity: "Quantite",
+    remove: "Retirer",
+    allowNegativeStock: "Autoriser le stock negatif"
   },
   rw: {
     appName: "Igenzura ry'Umudandaza",
@@ -332,6 +346,7 @@ export const dictionary = {
     quickActions: "Ibikorwa byihuse",
     receiveStock: "Kwakira stock ya BRALIRWA",
     createInvoice: "Gukora fagitire y'umukiriya",
+    createDeliveryTrip: "Tegura urugendo",
     reconcileTruck: "Kugenzura ikamyo",
     recordPayment: "Kwandika ubwishyu",
     language: "Ururimi",
@@ -399,7 +414,13 @@ export const dictionary = {
     productCreated: "Igicuruzwa cyakozwe.",
     productUpdated: "Igicuruzwa cyahinduwe.",
     productDeactivated: "Igicuruzwa cyahagaritswe.",
-    productReactivated: "Igicuruzwa cyongeye gukora."
+    productReactivated: "Igicuruzwa cyongeye gukora.",
+    deliveryTripCreated: "Urugendo rw'ikamyo rwakozwe.",
+    loadedItems: "Ibipakiwe",
+    addItem: "Ongeraho",
+    quantity: "Ingano",
+    remove: "Kuraho",
+    allowNegativeStock: "Emerera stock kujya munsi ya zero"
   },
   sw: {
     appName: "Udhibiti wa Msambazaji",
@@ -463,6 +484,7 @@ export const dictionary = {
     quickActions: "Vitendo vya haraka",
     receiveStock: "Pokea bidhaa za BRALIRWA",
     createInvoice: "Tengeneza ankara ya mteja",
+    createDeliveryTrip: "Unda safari ya usafirishaji",
     reconcileTruck: "Linganisha lori",
     recordPayment: "Rekodi malipo",
     language: "Lugha",
@@ -530,7 +552,13 @@ export const dictionary = {
     productCreated: "Bidhaa imeundwa.",
     productUpdated: "Bidhaa imesasishwa.",
     productDeactivated: "Bidhaa imezimwa.",
-    productReactivated: "Bidhaa imewashwa tena."
+    productReactivated: "Bidhaa imewashwa tena.",
+    deliveryTripCreated: "Safari ya usafirishaji imeundwa.",
+    loadedItems: "Bidhaa zilizopakiwa",
+    addItem: "Ongeza",
+    quantity: "Kiasi",
+    remove: "Ondoa",
+    allowNegativeStock: "Ruhusu akiba kuwa hasi"
   }
 } satisfies Record<Locale, Record<string, string>>;
 

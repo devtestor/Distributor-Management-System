@@ -34,8 +34,10 @@ import {
   ApiProductPriceHistory,
   ApiRole,
   ApiUser,
+  ApiVehicle,
   ApiWarehouseStockItem,
   changeMyPassword,
+  createDeliveryTrip,
   createProduct,
   createInvoice,
   createUser,
@@ -53,6 +55,7 @@ import {
   getProducts,
   getRoles,
   getUsers,
+  getVehicles,
   getWarehouseStock,
   login,
   OwnerDashboardResponse,
@@ -69,7 +72,7 @@ import { Customer, Delivery, Locale, Payment, Product } from "@/lib/types";
 
 const MAIN_WAREHOUSE_ID = "00000000-0000-0000-0000-000000000001";
 
-type ActionType = "stock" | "invoice" | "reconcile" | "payment" | null;
+type ActionType = "stock" | "invoice" | "delivery" | "reconcile" | "payment" | null;
 
 type InvoiceFormItem = {
   productId: string;
@@ -84,6 +87,11 @@ type ReconcileFormItem = {
   deliveredQuantity: number;
   returnedQuantity: number;
   damagedQuantity: number;
+};
+
+type DeliveryLoadFormItem = {
+  productId: string;
+  loadedQuantity: number;
 };
 
 type NavRole = "OWNER" | "ADMIN" | "WAREHOUSE_MANAGER" | "SALESPERSON" | "DRIVER" | "ACCOUNTANT";
@@ -243,6 +251,13 @@ function emptyInvoiceItem(productId = ""): InvoiceFormItem {
   };
 }
 
+function emptyDeliveryLoadItem(productId = ""): DeliveryLoadFormItem {
+  return {
+    productId,
+    loadedQuantity: 1
+  };
+}
+
 function emptyProductForm() {
   return {
     productId: "",
@@ -289,6 +304,7 @@ export default function Home() {
   const [apiProducts, setApiProducts] = useState<ApiProduct[]>([]);
   const [apiCustomers, setApiCustomers] = useState<ApiCustomer[]>([]);
   const [apiTrips, setApiTrips] = useState<ApiDeliveryTrip[]>([]);
+  const [apiVehicles, setApiVehicles] = useState<ApiVehicle[]>([]);
   const [apiInvoices, setApiInvoices] = useState<ApiInvoice[]>([]);
   const [apiUsers, setApiUsers] = useState<ApiUser[]>([]);
   const [apiRoles, setApiRoles] = useState<ApiRole[]>([]);
@@ -327,6 +343,13 @@ export default function Home() {
     creditIssued: 0,
     items: [] as ReconcileFormItem[]
   });
+  const [deliveryForm, setDeliveryForm] = useState({
+    vehicleId: "",
+    driverId: "",
+    route: "",
+    allowNegativeStock: false,
+    items: [] as DeliveryLoadFormItem[]
+  });
   const [accountForm, setAccountForm] = useState({
     fullName: "",
     email: "",
@@ -357,6 +380,7 @@ export default function Home() {
     setApiProducts([]);
     setApiCustomers([]);
     setApiTrips([]);
+    setApiVehicles([]);
     setApiInvoices([]);
     setApiUsers([]);
     setApiRoles([]);
@@ -377,6 +401,7 @@ export default function Home() {
         const rawCustomers = await getCustomers(token);
         const rawPayments = await getPayments(token);
         const rawTrips = await getDeliveryTrips(token);
+        const rawVehicles = await getVehicles(token);
         const rawInvoices = await getInvoices(token);
 
         const canManageUsers = profile.role === "OWNER" || profile.role === "ADMIN";
@@ -405,6 +430,7 @@ export default function Home() {
         setApiProducts(rawProducts);
         setApiCustomers(rawCustomers);
         setApiTrips(rawTrips);
+        setApiVehicles(rawVehicles);
         setApiInvoices(rawInvoices);
         setApiUsers(rawUsers);
         setApiRoles(rawRoles);
@@ -467,6 +493,7 @@ export default function Home() {
   const canUseLiveActions = Boolean(accessToken && apiStatus === "connected");
   const assignableRoles = apiRoles.filter((role) => user?.role === "OWNER" || role.name !== "OWNER");
   const openTrips = apiTrips.filter((trip) => trip.status !== "CLOSED");
+  const driverUsers = apiUsers.filter((account) => account.role === "DRIVER" && account.isActive !== false);
   const selectedTrip = apiTrips.find((trip) => trip.id === reconcileForm.tripId);
   const payableInvoices = apiInvoices.filter(
     (invoice) => invoice.customerId === paymentForm.customerId && invoice.paymentStatus !== "PAID"
@@ -522,6 +549,7 @@ export default function Home() {
   const quickActions = [
     { key: "stock" as const, label: t("receiveStock"), icon: PackagePlus, roles: ["OWNER", "ADMIN", "WAREHOUSE_MANAGER"] as NavRole[] },
     { key: "invoice" as const, label: t("createInvoice"), icon: ReceiptText, roles: ["OWNER", "ADMIN", "SALESPERSON"] as NavRole[] },
+    { key: "delivery" as const, label: t("createDeliveryTrip"), icon: Truck, roles: ["OWNER", "ADMIN"] as NavRole[] },
     { key: "reconcile" as const, label: t("reconcileTruck"), icon: ClipboardCheck, roles: ["OWNER", "ADMIN", "WAREHOUSE_MANAGER", "DRIVER"] as NavRole[] },
     { key: "payment" as const, label: t("recordPayment"), icon: Banknote, roles: ["OWNER", "ADMIN", "SALESPERSON", "ACCOUNTANT"] as NavRole[] }
   ].filter((item) => !user?.role || item.roles.includes(user.role as NavRole));
@@ -656,6 +684,16 @@ export default function Home() {
       });
     }
 
+    if (action === "delivery") {
+      setDeliveryForm({
+        vehicleId: apiVehicles[0]?.id ?? "",
+        driverId: driverUsers[0]?.id ?? "",
+        route: apiVehicles[0]?.driver?.fullName ?? "",
+        allowNegativeStock: false,
+        items: [emptyDeliveryLoadItem(apiProducts[0]?.id ?? "")]
+      });
+    }
+
     if (action === "reconcile") {
       const firstTrip = openTrips[0];
       setReconcileForm({
@@ -761,6 +799,28 @@ export default function Home() {
         });
       },
       t("reconcileTruck")
+    );
+  }
+
+  async function submitDeliveryTrip(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (!accessToken) return;
+
+    await runAction(
+      async () => {
+        await createDeliveryTrip(accessToken, {
+          warehouseId: MAIN_WAREHOUSE_ID,
+          vehicleId: deliveryForm.vehicleId,
+          driverId: deliveryForm.driverId,
+          route: deliveryForm.route,
+          allowNegativeStock: deliveryForm.allowNegativeStock || undefined,
+          items: deliveryForm.items.map((item) => ({
+            productId: item.productId,
+            loadedQuantity: item.loadedQuantity
+          }))
+        });
+      },
+      t("deliveryTripCreated")
     );
   }
 
@@ -1853,9 +1913,11 @@ export default function Home() {
                   ? t("receiveStock")
                   : activeAction === "invoice"
                     ? t("createInvoice")
-                    : activeAction === "reconcile"
-                      ? t("reconcileTruck")
-                      : t("recordPayment")}
+                    : activeAction === "delivery"
+                      ? t("createDeliveryTrip")
+                      : activeAction === "reconcile"
+                        ? t("reconcileTruck")
+                        : t("recordPayment")}
               </h3>
               <button className="icon-button" onClick={closeActionModal} type="button">
                 <X size={18} aria-hidden="true" />
@@ -2147,6 +2209,142 @@ export default function Home() {
                   </button>
                   <button className="primary-button" disabled={isActionSubmitting} type="submit">
                     {isActionSubmitting ? "Saving..." : "Record payment"}
+                  </button>
+                </div>
+              </form>
+            ) : null}
+
+            {activeAction === "delivery" ? (
+              <form className="entry-form" onSubmit={submitDeliveryTrip}>
+                <div className="form-grid">
+                  <label>
+                    <span>{t("truck")}</span>
+                    <select
+                      required
+                      value={deliveryForm.vehicleId}
+                      onChange={(event) => setDeliveryForm((current) => ({ ...current, vehicleId: event.target.value }))}
+                    >
+                      {apiVehicles.map((vehicle) => (
+                        <option key={vehicle.id} value={vehicle.id}>
+                          {vehicle.plateNumber}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+                  <label>
+                    <span>{t("driver")}</span>
+                    <select
+                      required
+                      value={deliveryForm.driverId}
+                      onChange={(event) => setDeliveryForm((current) => ({ ...current, driverId: event.target.value }))}
+                    >
+                      {driverUsers.map((driver) => (
+                        <option key={driver.id} value={driver.id}>
+                          {driver.fullName}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+                  <label>
+                    <span>{t("route")}</span>
+                    <input
+                      required
+                      value={deliveryForm.route}
+                      onChange={(event) => setDeliveryForm((current) => ({ ...current, route: event.target.value }))}
+                    />
+                  </label>
+                </div>
+
+                <div className="form-section">
+                  <div className="form-section-header">
+                    <strong>{t("loadedItems")}</strong>
+                    <button
+                      className="ghost-button"
+                      onClick={() =>
+                        setDeliveryForm((current) => ({
+                          ...current,
+                          items: [...current.items, emptyDeliveryLoadItem(apiProducts[0]?.id ?? "")]
+                        }))
+                      }
+                      type="button"
+                    >
+                      {t("addItem")}
+                    </button>
+                  </div>
+                  {deliveryForm.items.map((item, index) => (
+                    <div className="form-grid compact" key={`${item.productId}-${index}`}>
+                      <label>
+                        <span>{t("product")}</span>
+                        <select
+                          value={item.productId}
+                          onChange={(event) =>
+                            setDeliveryForm((current) => ({
+                              ...current,
+                              items: current.items.map((entry, entryIndex) =>
+                                entryIndex === index ? { ...entry, productId: event.target.value } : entry
+                              )
+                            }))
+                          }
+                        >
+                          {apiProducts.map((product) => (
+                            <option key={product.id} value={product.id}>
+                              {product.name}
+                            </option>
+                          ))}
+                        </select>
+                      </label>
+                      <label>
+                        <span>{t("quantity")}</span>
+                        <input
+                          min={1}
+                          type="number"
+                          value={item.loadedQuantity}
+                          onChange={(event) =>
+                            setDeliveryForm((current) => ({
+                              ...current,
+                              items: current.items.map((entry, entryIndex) =>
+                                entryIndex === index
+                                  ? { ...entry, loadedQuantity: Number(event.target.value) || 0 }
+                                  : entry
+                              )
+                            }))
+                          }
+                        />
+                      </label>
+                      <button
+                        className="ghost-button remove-button"
+                        disabled={deliveryForm.items.length === 1}
+                        onClick={() =>
+                          setDeliveryForm((current) => ({
+                            ...current,
+                            items: current.items.filter((_, entryIndex) => entryIndex !== index)
+                          }))
+                        }
+                        type="button"
+                      >
+                        {t("remove")}
+                      </button>
+                    </div>
+                  ))}
+                </div>
+
+                <label className="checkbox-label">
+                  <input
+                    checked={deliveryForm.allowNegativeStock}
+                    type="checkbox"
+                    onChange={(event) =>
+                      setDeliveryForm((current) => ({ ...current, allowNegativeStock: event.target.checked }))
+                    }
+                  />
+                  <span>{t("allowNegativeStock")}</span>
+                </label>
+
+                <div className="modal-actions">
+                  <button className="ghost-button" onClick={closeActionModal} type="button">
+                    {t("close")}
+                  </button>
+                  <button className="primary-button" disabled={isActionSubmitting} type="submit">
+                    {isActionSubmitting ? t("saving") : t("createDeliveryTrip")}
                   </button>
                 </div>
               </form>

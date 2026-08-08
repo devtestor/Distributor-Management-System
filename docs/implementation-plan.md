@@ -586,8 +586,12 @@ Acceptance criteria:
 Current status:
 
 - Delivery trip list/create endpoints have been added.
+- Active vehicle list endpoint has been added.
+- Delivery trip creation now records truck-load stock movement ledger entries.
 - Delivery reconciliation endpoint has been added.
 - Quantity reconciliation rule has been added.
+- Returned truck stock now records return movement ledger entries back to the loading warehouse.
+- Frontend owner/admin truck-loading action has been added.
 - Cash collection and variance tracking are still pending.
 
 ## Milestone 8: Reports and Profitability

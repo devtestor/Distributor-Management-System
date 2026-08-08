@@ -1,5 +1,5 @@
 import { Type } from "class-transformer";
-import { ArrayMinSize, IsArray, IsInt, IsString, Min, ValidateNested } from "class-validator";
+import { ArrayMinSize, IsArray, IsBoolean, IsInt, IsOptional, IsString, Min, ValidateNested } from "class-validator";
 
 class DeliveryTripItemDto {
   @IsString()
@@ -11,6 +11,9 @@ class DeliveryTripItemDto {
 }
 
 export class CreateDeliveryTripDto {
+  @IsString()
+  warehouseId!: string;
+
   @IsString()
   vehicleId!: string;
 
@@ -25,4 +28,8 @@ export class CreateDeliveryTripDto {
   @ValidateNested({ each: true })
   @Type(() => DeliveryTripItemDto)
   items!: DeliveryTripItemDto[];
+
+  @IsBoolean()
+  @IsOptional()
+  allowNegativeStock?: boolean;
 }

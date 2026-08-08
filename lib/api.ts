@@ -229,6 +229,18 @@ export type ApiDeliveryTrip = {
   }>;
 };
 
+export type ApiVehicle = {
+  id: string;
+  plateNumber: string;
+  driverId: string | null;
+  isActive: boolean;
+  driver: {
+    id: string;
+    fullName: string;
+    email: string | null;
+  } | null;
+};
+
 const apiBaseUrl = process.env.NEXT_PUBLIC_API_URL ?? "/api";
 
 async function request<T>(path: string, options: RequestInit = {}) {
@@ -386,6 +398,12 @@ export function getDeliveryTrips(accessToken: string) {
   });
 }
 
+export function getVehicles(accessToken: string) {
+  return request<ApiVehicle[]>("/deliveries/trips/vehicles", {
+    headers: authHeaders(accessToken)
+  });
+}
+
 export function getUsers(accessToken: string) {
   return request<ApiUser[]>("/users", {
     headers: authHeaders(accessToken)
@@ -477,6 +495,27 @@ export function reconcileDeliveryTrip(
   }
 ) {
   return request(`/deliveries/trips/${tripId}/reconcile`, {
+    method: "POST",
+    headers: authHeaders(accessToken),
+    body: JSON.stringify(payload)
+  });
+}
+
+export function createDeliveryTrip(
+  accessToken: string,
+  payload: {
+    warehouseId: string;
+    vehicleId: string;
+    driverId: string;
+    route: string;
+    items: Array<{
+      productId: string;
+      loadedQuantity: number;
+    }>;
+    allowNegativeStock?: boolean;
+  }
+) {
+  return request<ApiDeliveryTrip>("/deliveries/trips", {
     method: "POST",
     headers: authHeaders(accessToken),
     body: JSON.stringify(payload)
