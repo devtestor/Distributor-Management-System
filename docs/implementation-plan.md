@@ -679,6 +679,18 @@ Acceptance criteria:
 - Database backups are scheduled.
 - Owner/admin can recover from common operational mistakes.
 
+Current status:
+
+- Vercel production deployment is configured for frontend and API.
+- Dockerfile has been added for container deployment.
+- Docker Compose includes app and PostgreSQL services for local production-like runs.
+- Production migration script `prisma:deploy` has been added.
+- Deployment documentation has been expanded with Vercel, Docker, backup, logging, and monitoring notes.
+- Production runbook has been added.
+- Basic user training notes have been added.
+- External managed database backup scheduling still needs to be enabled in the selected PostgreSQL provider.
+- Structured error monitoring provider is still pending.
+
 ## Testing Strategy
 
 Unit tests:

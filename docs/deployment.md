@@ -1,6 +1,16 @@
 # Deployment
 
-## Vercel Frontend
+## Current Production Target
+
+The current production deployment uses one Vercel app:
+
+- Next.js frontend
+- NestJS API through `api/[...path].js`
+- Neon PostgreSQL through `DATABASE_URL`
+
+Use the stable Vercel URL until the custom domain DNS is pointed at Vercel.
+
+## Vercel App
 
 This repository is ready for a Vercel frontend deployment from GitHub.
 
@@ -11,32 +21,78 @@ Recommended Vercel settings:
 - Install command: `npm install`
 - Output directory: `.next`
 
-Required Vercel environment variable:
+Required Vercel environment variables:
 
 ```bash
 NEXT_PUBLIC_API_URL=/api
-```
-
-## API Hosting
-
-The NestJS API in `apps/api` is deployed on Vercel through the `api/[...path].js` serverless adapter.
-
-Required API environment variables:
-
-```bash
 DATABASE_URL=postgresql://...
 JWT_SECRET=replace-with-a-long-random-secret
 JWT_EXPIRES_IN=1h
 WEB_ORIGIN=https://your-vercel-app.vercel.app
-API_PORT=4000
 ```
 
 Run database setup against the production database before using live accounts:
 
 ```bash
-npm run prisma:migrate
+npm run prisma:deploy
 npm run prisma:seed
 ```
+
+`prisma:migrate` is for local development. Use `prisma:deploy` in production.
+
+## Docker Deployment
+
+A production Docker image is available through `Dockerfile`.
+
+Local build:
+
+```bash
+docker build -t distributor-management-system .
+```
+
+Local stack with PostgreSQL:
+
+```bash
+docker compose up --build
+```
+
+The app is exposed at `http://localhost:3000`.
+
+The Docker stack runs:
+
+- `app`: Next.js frontend on port `3000`
+- `api`: NestJS API on port `4000`
+- `postgres`: PostgreSQL on port `5432`
+
+The frontend keeps `NEXT_PUBLIC_API_URL=/api` and proxies API calls to the internal Docker API service through `API_INTERNAL_URL=http://api:4000`.
+
+## Database Backups
+
+Use managed PostgreSQL backups in the hosting provider. Minimum policy:
+
+- Daily backups
+- 14 days retention during pilot
+- 30 days retention for production
+- Manual backup before major releases or imports
+
+Manual backup example:
+
+```bash
+pg_dump "$DATABASE_URL" --format=custom --file="backup-$(date +%Y%m%d-%H%M).dump"
+```
+
+Restore example:
+
+```bash
+pg_restore --clean --if-exists --dbname "$DATABASE_URL" backup-file.dump
+```
+
+## Logging and Monitoring
+
+- Use Vercel deployment/function logs for runtime API errors.
+- Use `/api/health` for health checks.
+- Connect Sentry, Axiom, or a similar service before onboarding a real distributor.
+- Review audit logs after sensitive account, product, price, and stock actions.
 
 ## GitHub Flow
 

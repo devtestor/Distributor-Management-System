@@ -98,6 +98,8 @@ npm run prisma:generate
 - [Backend API status](docs/backend-api.md)
 - [Architecture notes](docs/architecture.md)
 - [Deployment notes](docs/deployment.md)
+- [Production runbook](docs/production-runbook.md)
+- [Training notes](docs/training-notes.md)
 - [Database schema notes](docs/database-schema.sql)
 
 ## License
