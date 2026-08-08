@@ -1,4 +1,4 @@
-import { BadRequestException, Injectable, NotFoundException } from "@nestjs/common";
+import { BadRequestException, Inject, Injectable, NotFoundException } from "@nestjs/common";
 import { DeliveryStatus } from "@prisma/client";
 import { PrismaService } from "../prisma/prisma.service";
 import { CreateDeliveryTripDto } from "./dto/create-delivery-trip.dto";
@@ -6,7 +6,7 @@ import { ReconcileDeliveryTripDto } from "./dto/reconcile-delivery-trip.dto";
 
 @Injectable()
 export class DeliveriesService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(@Inject(PrismaService) private readonly prisma: PrismaService) {}
 
   list() {
     return this.prisma.deliveryTrip.findMany({

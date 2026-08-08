@@ -1,4 +1,4 @@
-import { Body, Controller, Get, Param, Post, Req } from "@nestjs/common";
+import { Body, Controller, Get, Inject, Param, Post, Req } from "@nestjs/common";
 import type { AuthenticatedRequest } from "../common/authenticated-request";
 import { Roles } from "../common/roles.decorator";
 import { CreateEmptyContainerMovementDto } from "./dto/create-empty-container-movement.dto";
@@ -6,7 +6,7 @@ import { EmptyContainersService } from "./empty-containers.service";
 
 @Controller("empty-containers")
 export class EmptyContainersController {
-  constructor(private readonly emptyContainersService: EmptyContainersService) {}
+  constructor(@Inject(EmptyContainersService) private readonly emptyContainersService: EmptyContainersService) {}
 
   @Get("customers/:customerId")
   customerLedger(@Param("customerId") customerId: string) {

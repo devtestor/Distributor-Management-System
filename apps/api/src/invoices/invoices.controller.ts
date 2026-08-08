@@ -1,4 +1,4 @@
-import { Body, Controller, Get, Param, Post, Req } from "@nestjs/common";
+import { Body, Controller, Get, Inject, Param, Post, Req } from "@nestjs/common";
 import type { AuthenticatedRequest } from "../common/authenticated-request";
 import { Roles } from "../common/roles.decorator";
 import { CreateInvoiceDto } from "./dto/create-invoice.dto";
@@ -6,7 +6,7 @@ import { InvoicesService } from "./invoices.service";
 
 @Controller("invoices")
 export class InvoicesController {
-  constructor(private readonly invoicesService: InvoicesService) {}
+  constructor(@Inject(InvoicesService) private readonly invoicesService: InvoicesService) {}
 
   @Get()
   list() {

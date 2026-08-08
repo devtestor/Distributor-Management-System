@@ -1,4 +1,4 @@
-import { Body, Controller, Get, Param, Patch, Post, Req } from "@nestjs/common";
+import { Body, Controller, Delete, Get, Inject, Param, Patch, Post, Req } from "@nestjs/common";
 import type { AuthenticatedRequest } from "../common/authenticated-request";
 import { Roles } from "../common/roles.decorator";
 import { ChangePasswordDto } from "./dto/change-password.dto";
@@ -9,7 +9,7 @@ import { UsersService } from "./users.service";
 
 @Controller()
 export class UsersController {
-  constructor(private readonly usersService: UsersService) {}
+  constructor(@Inject(UsersService) private readonly usersService: UsersService) {}
 
   @Get("users")
   @Roles("OWNER", "ADMIN")
@@ -39,6 +39,12 @@ export class UsersController {
   @Roles("OWNER", "ADMIN")
   update(@Param("id") id: string, @Body() dto: UpdateUserDto, @Req() request: AuthenticatedRequest) {
     return this.usersService.updateUser(id, dto, request.user.id, request.user.role);
+  }
+
+  @Delete("users/:id")
+  @Roles("OWNER", "ADMIN")
+  delete(@Param("id") id: string, @Req() request: AuthenticatedRequest) {
+    return this.usersService.deleteUser(id, request.user.id, request.user.role);
   }
 
   @Post("users/:id/reset-password")

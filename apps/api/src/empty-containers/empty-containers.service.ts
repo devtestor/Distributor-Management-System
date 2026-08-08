@@ -1,11 +1,11 @@
-import { Injectable, NotFoundException } from "@nestjs/common";
+import { Inject, Injectable, NotFoundException } from "@nestjs/common";
 import { EmptyMovementType } from "@prisma/client";
 import { PrismaService } from "../prisma/prisma.service";
 import { CreateEmptyContainerMovementDto } from "./dto/create-empty-container-movement.dto";
 
 @Injectable()
 export class EmptyContainersService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(@Inject(PrismaService) private readonly prisma: PrismaService) {}
 
   async customerLedger(customerId: string) {
     const customer = await this.prisma.customer.findUnique({ where: { id: customerId } });

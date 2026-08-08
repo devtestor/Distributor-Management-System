@@ -1,11 +1,11 @@
-import { Body, Controller, Get, Param, Post } from "@nestjs/common";
+import { Body, Controller, Get, Inject, Param, Post } from "@nestjs/common";
 import { Roles } from "../common/roles.decorator";
 import { CreateCustomerDto } from "./dto/create-customer.dto";
 import { CustomersService } from "./customers.service";
 
 @Controller("customers")
 export class CustomersController {
-  constructor(private readonly customersService: CustomersService) {}
+  constructor(@Inject(CustomersService) private readonly customersService: CustomersService) {}
 
   @Get()
   list() {

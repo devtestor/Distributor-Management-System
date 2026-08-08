@@ -1,4 +1,4 @@
-import { BadRequestException, ConflictException, ForbiddenException, Injectable, NotFoundException } from "@nestjs/common";
+import { BadRequestException, ConflictException, ForbiddenException, Inject, Injectable, NotFoundException } from "@nestjs/common";
 import { Prisma } from "@prisma/client";
 import bcrypt from "bcryptjs";
 import { PrismaService } from "../prisma/prisma.service";
@@ -9,7 +9,7 @@ import { UpdateUserDto } from "./dto/update-user.dto";
 
 @Injectable()
 export class UsersService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(@Inject(PrismaService) private readonly prisma: PrismaService) {}
 
   listRoles() {
     return this.prisma.role.findMany({
@@ -190,6 +190,43 @@ export class UsersService {
     };
   }
 
+  async deleteUser(userId: string, actorUserId: string, actorRole: string) {
+    const user = await this.prisma.user.findUnique({
+      where: { id: userId },
+      include: { role: true }
+    });
+    if (!user) throw new NotFoundException("User not found");
+
+    if (userId === actorUserId) {
+      throw new BadRequestException("You cannot delete your own account");
+    }
+
+    this.assertOwnerOnly(actorRole, user.role.name);
+
+    if (user.isActive) {
+      await this.assertLastActiveOwner(userId, user.role.name);
+    }
+
+    const relatedRecords = await this.countUserBusinessRecords(userId);
+    if (relatedRecords > 0) {
+      throw new BadRequestException("This account has business or audit records. Deactivate it instead.");
+    }
+
+    await this.prisma.user.delete({
+      where: { id: userId }
+    });
+
+    await this.createAuditLog(actorUserId, "USER_DELETED", "User", user.id, {
+      email: user.email,
+      role: user.role.name
+    });
+
+    return {
+      id: user.id,
+      deletedById: actorUserId
+    };
+  }
+
   async changePassword(userId: string, dto: ChangePasswordDto) {
     const user = await this.prisma.user.findUnique({
       where: { id: userId }
@@ -232,6 +269,22 @@ export class UsersService {
     if (activeOwners <= 1) {
       throw new BadRequestException("You cannot deactivate the last active owner");
     }
+  }
+
+  private async countUserBusinessRecords(userId: string) {
+    const counts = await Promise.all([
+      this.prisma.stockMovement.count({ where: { createdById: userId } }),
+      this.prisma.invoice.count({ where: { createdById: userId } }),
+      this.prisma.payment.count({ where: { receivedById: userId } }),
+      this.prisma.emptyContainerMovement.count({ where: { createdById: userId } }),
+      this.prisma.vehicle.count({ where: { driverId: userId } }),
+      this.prisma.deliveryTrip.count({ where: { driverId: userId } }),
+      this.prisma.expense.count({ where: { spentById: userId } }),
+      this.prisma.auditLog.count({ where: { userId } }),
+      this.prisma.productPriceHistory.count({ where: { changedById: userId } })
+    ]);
+
+    return counts.reduce((total, count) => total + count, 0);
   }
 
   private async createAuditLog(

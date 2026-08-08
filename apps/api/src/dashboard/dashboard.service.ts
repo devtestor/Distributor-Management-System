@@ -1,4 +1,4 @@
-import { Injectable } from "@nestjs/common";
+import { Inject, Injectable } from "@nestjs/common";
 import { DeliveryStatus, EmptyMovementType, InvoiceStatus, StockMovementType } from "@prisma/client";
 import { PrismaService } from "../prisma/prisma.service";
 
@@ -10,7 +10,7 @@ const inboundStock = new Set<StockMovementType>([
 
 @Injectable()
 export class DashboardService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(@Inject(PrismaService) private readonly prisma: PrismaService) {}
 
   async getOwnerDashboard() {
     const [products, invoices, payments, customers, emptyMovements, activeDeliveries] = await Promise.all([

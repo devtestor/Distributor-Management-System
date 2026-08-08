@@ -17,6 +17,7 @@ import {
   Search,
   Settings,
   ShieldCheck,
+  Trash2,
   type LucideIcon,
   Truck,
   Users,
@@ -38,6 +39,7 @@ import {
   createProduct,
   createInvoice,
   createUser,
+  deleteUser,
   getProductPriceHistory,
   getCustomerBalance,
   getCustomers,
@@ -907,6 +909,18 @@ export default function Home() {
     );
   }
 
+  async function removeUserAccount(target: ApiUser) {
+    if (!accessToken) return;
+    if (!window.confirm(t("deleteAccountConfirm"))) return;
+
+    await runAction(
+      async () => {
+        await deleteUser(accessToken, target.id);
+      },
+      t("accountDeleted")
+    );
+  }
+
   async function toggleProductStatus(target: ApiProduct) {
     if (!accessToken) return;
 
@@ -1671,8 +1685,23 @@ export default function Home() {
                               </span>
                             </td>
                             <td>
-                              <button className="ghost-button inline-button" onClick={() => void toggleUserStatus(account)} type="button">
+                              <button
+                                className="ghost-button inline-button"
+                                disabled={isActionSubmitting || account.id === user?.id}
+                                onClick={() => void toggleUserStatus(account)}
+                                type="button"
+                              >
                                 {account.isActive ? t("deactivate") : t("reactivate")}
+                              </button>
+                              <button
+                                aria-label={t("deleteAccount")}
+                                className="ghost-button danger-button inline-button"
+                                disabled={isActionSubmitting || account.id === user?.id}
+                                onClick={() => void removeUserAccount(account)}
+                                title={t("deleteAccount")}
+                                type="button"
+                              >
+                                <Trash2 size={14} aria-hidden="true" />
                               </button>
                             </td>
                           </tr>

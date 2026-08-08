@@ -519,6 +519,13 @@ export function updateUser(
   });
 }
 
+export function deleteUser(accessToken: string, userId: string) {
+  return request<{ id: string; deletedById: string }>(`/users/${userId}`, {
+    method: "DELETE",
+    headers: authHeaders(accessToken)
+  });
+}
+
 export function resetUserPassword(accessToken: string, userId: string, newPassword: string) {
   return request<{ id: string; resetById: string }>(`/users/${userId}/reset-password`, {
     method: "POST",

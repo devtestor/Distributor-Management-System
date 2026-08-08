@@ -1,4 +1,4 @@
-import { Body, Controller, Get, Param, Post, Req } from "@nestjs/common";
+import { Body, Controller, Get, Inject, Param, Post, Req } from "@nestjs/common";
 import type { AuthenticatedRequest } from "../common/authenticated-request";
 import { Roles } from "../common/roles.decorator";
 import { StockCountDto } from "./dto/stock-count.dto";
@@ -8,7 +8,7 @@ import { StockService } from "./stock.service";
 
 @Controller()
 export class StockController {
-  constructor(private readonly stockService: StockService) {}
+  constructor(@Inject(StockService) private readonly stockService: StockService) {}
 
   @Get("warehouses")
   warehouses() {

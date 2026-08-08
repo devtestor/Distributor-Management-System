@@ -580,6 +580,11 @@ td small {
   padding: 0 14px;
 }
 
+.danger-button {
+  border-color: #f0b8b4;
+  color: #a42824;
+}
+
 .entry-form {
   padding: 20px;
   display: grid;
@@ -669,6 +674,8 @@ td small {
 .inline-button {
   min-height: 32px;
   padding: 0 10px;
+  margin-right: 8px;
+  vertical-align: middle;
 }
 
 .form-error {
