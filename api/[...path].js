@@ -1,15 +1,16 @@
-import "reflect-metadata";
-import { ValidationPipe } from "@nestjs/common";
-import { ConfigService } from "@nestjs/config";
-import { NestFactory } from "@nestjs/core";
-import { AppModule } from "../apps/api/src/app.module";
+require("reflect-metadata");
 
-let server: ((request: unknown, response: unknown) => void) | undefined;
+const { ValidationPipe } = require("@nestjs/common");
+const { ConfigService } = require("@nestjs/config");
+const { NestFactory } = require("@nestjs/core");
+const { AppModule } = require("../dist/api/app.module");
+
+let server;
 
 async function bootstrapServer() {
   const app = await NestFactory.create(AppModule, { logger: ["error", "warn", "log"] });
   const config = app.get(ConfigService);
-  const webOrigin = config.get<string>("WEB_ORIGIN") ?? "http://localhost:3000";
+  const webOrigin = config.get("WEB_ORIGIN") ?? "http://localhost:3000";
   const allowedOrigins = webOrigin
     .split(",")
     .map((origin) => origin.trim())
@@ -29,10 +30,10 @@ async function bootstrapServer() {
   );
 
   await app.init();
-  return app.getHttpAdapter().getInstance() as (request: unknown, response: unknown) => void;
+  return app.getHttpAdapter().getInstance();
 }
 
-export default async function handler(request: unknown, response: unknown) {
+module.exports = async function handler(request, response) {
   server ??= await bootstrapServer();
   return server(request, response);
-}
+};
