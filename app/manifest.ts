@@ -6,9 +6,18 @@ export default function manifest(): MetadataRoute.Manifest {
     short_name: "DistControl",
     description: "Inventory, delivery, payment, and empty container tracking for beverage distributors.",
     start_url: "/",
+    scope: "/",
     display: "standalone",
     background_color: "#f5f6f3",
     theme_color: "#0b6b50",
-    categories: ["business", "productivity"]
+    categories: ["business", "productivity"],
+    icons: [
+      {
+        src: "/icon.svg",
+        sizes: "any",
+        type: "image/svg+xml",
+        purpose: "maskable"
+      }
+    ]
   };
 }

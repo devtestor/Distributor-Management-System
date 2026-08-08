@@ -648,6 +648,15 @@ Acceptance criteria:
 - Data syncs when online.
 - Conflicts require user/admin resolution.
 
+Current status:
+
+- PWA manifest has been expanded with scope and install icon.
+- Service worker has been added to cache the app shell and static assets.
+- Online/offline status indicator has been added to the authenticated app.
+- Local offline draft queue has been added for stock receipts, invoices, payments, delivery trips, and reconciliations.
+- Queued drafts sync automatically when the connection returns and can be triggered manually.
+- Full conflict review/admin resolution UI is still pending.
+
 ## Milestone 10: Production Deployment
 
 Goal:

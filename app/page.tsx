@@ -79,6 +79,7 @@ import { customers, deliveries, payments, products } from "@/lib/mock-data";
 import { Customer, Delivery, Locale, Payment, Product } from "@/lib/types";
 
 const MAIN_WAREHOUSE_ID = "00000000-0000-0000-0000-000000000001";
+const OFFLINE_DRAFTS_KEY = "offlineDrafts";
 
 type ActionType = "stock" | "invoice" | "delivery" | "reconcile" | "payment" | null;
 
@@ -100,6 +101,13 @@ type ReconcileFormItem = {
 type DeliveryLoadFormItem = {
   productId: string;
   loadedQuantity: number;
+};
+
+type OfflineDraft = {
+  id: string;
+  type: "stock" | "invoice" | "payment" | "delivery" | "reconcile";
+  payload: Record<string, unknown>;
+  createdAt: string;
 };
 
 type NavRole = "OWNER" | "ADMIN" | "WAREHOUSE_MANAGER" | "SALESPERSON" | "DRIVER" | "ACCOUNTANT";
@@ -349,6 +357,9 @@ export default function Home() {
   const [actionError, setActionError] = useState<string | null>(null);
   const [actionNotice, setActionNotice] = useState<string | null>(null);
   const [isActionSubmitting, setIsActionSubmitting] = useState(false);
+  const [isOnline, setIsOnline] = useState(true);
+  const [offlineDrafts, setOfflineDrafts] = useState<OfflineDraft[]>([]);
+  const [isSyncingDrafts, setIsSyncingDrafts] = useState(false);
   const [stockForm, setStockForm] = useState({
     productId: "",
     quantity: 1,
@@ -398,9 +409,29 @@ export default function Home() {
     newPassword: ""
   });
   const [productForm, setProductForm] = useState(emptyProductForm);
-  const t = (key: TranslationKey) => dictionary[locale][key];
+  const t = useCallback((key: TranslationKey) => dictionary[locale][key], [locale]);
   const isAccountAdmin = user?.role === "OWNER" || user?.role === "ADMIN";
   const isAuthenticated = Boolean(user && accessToken && apiStatus === "connected");
+
+  const saveOfflineDrafts = useCallback((drafts: OfflineDraft[]) => {
+    setOfflineDrafts(drafts);
+    window.localStorage.setItem(OFFLINE_DRAFTS_KEY, JSON.stringify(drafts));
+  }, []);
+
+  const enqueueOfflineDraft = useCallback(
+    (type: OfflineDraft["type"], payload: Record<string, unknown>) => {
+      const draft = {
+        id: crypto.randomUUID(),
+        type,
+        payload,
+        createdAt: new Date().toISOString()
+      };
+      saveOfflineDrafts([...offlineDrafts, draft]);
+      setActionNotice(t("offlineDraftSaved"));
+      setActiveAction(null);
+    },
+    [offlineDrafts, saveOfflineDrafts, t]
+  );
 
   const clearLiveState = useCallback(() => {
     setOwnerDashboard(null);
@@ -498,6 +529,32 @@ export default function Home() {
   );
 
   useEffect(() => {
+    if ("serviceWorker" in navigator) {
+      void navigator.serviceWorker.register("/sw.js").catch(() => undefined);
+    }
+
+    setIsOnline(navigator.onLine);
+    const storedDrafts = window.localStorage.getItem(OFFLINE_DRAFTS_KEY);
+    if (storedDrafts) {
+      try {
+        setOfflineDrafts(JSON.parse(storedDrafts) as OfflineDraft[]);
+      } catch {
+        window.localStorage.removeItem(OFFLINE_DRAFTS_KEY);
+      }
+    }
+
+    const setOnline = () => setIsOnline(true);
+    const setOffline = () => setIsOnline(false);
+    window.addEventListener("online", setOnline);
+    window.addEventListener("offline", setOffline);
+
+    return () => {
+      window.removeEventListener("online", setOnline);
+      window.removeEventListener("offline", setOffline);
+    };
+  }, []);
+
+  useEffect(() => {
     void getApiHealth()
       .then(() => setApiStatus("connected"))
       .catch(() => setApiStatus("mock"));
@@ -529,6 +586,49 @@ export default function Home() {
         });
     }
   }, [loadLiveData]);
+
+  const syncOfflineDrafts = useCallback(async () => {
+    if (!accessToken || !isOnline || offlineDrafts.length === 0 || isSyncingDrafts) return;
+
+    setIsSyncingDrafts(true);
+    setActionError(null);
+
+    try {
+      const remaining = [...offlineDrafts];
+      for (const draft of offlineDrafts) {
+        if (draft.type === "stock") {
+          await receiveStock(accessToken, draft.payload as Parameters<typeof receiveStock>[1]);
+        }
+        if (draft.type === "invoice") {
+          await createInvoice(accessToken, draft.payload as Parameters<typeof createInvoice>[1]);
+        }
+        if (draft.type === "payment") {
+          await recordPayment(accessToken, draft.payload as Parameters<typeof recordPayment>[1]);
+        }
+        if (draft.type === "delivery") {
+          await createDeliveryTrip(accessToken, draft.payload as Parameters<typeof createDeliveryTrip>[1]);
+        }
+        if (draft.type === "reconcile") {
+          const payload = draft.payload as { tripId: string; data: Parameters<typeof reconcileDeliveryTrip>[2] };
+          await reconcileDeliveryTrip(accessToken, payload.tripId, payload.data);
+        }
+        remaining.shift();
+        saveOfflineDrafts(remaining);
+      }
+
+      await loadLiveData(accessToken);
+      setActionNotice(t("offlineDraftsSynced"));
+    } catch (error) {
+      setActionError(error instanceof Error ? error.message : t("genericActionFailed"));
+    } finally {
+      setIsSyncingDrafts(false);
+    }
+  }, [accessToken, isOnline, isSyncingDrafts, loadLiveData, offlineDrafts, saveOfflineDrafts, t]);
+
+  useEffect(() => {
+    if (!isOnline || !accessToken || offlineDrafts.length === 0) return;
+    void syncOfflineDrafts();
+  }, [accessToken, isOnline, offlineDrafts.length, syncOfflineDrafts]);
 
   const displayedProducts = liveProducts.length > 0 ? liveProducts : products;
   const displayedCustomers = liveCustomers.length > 0 ? liveCustomers : customers;
@@ -770,16 +870,22 @@ export default function Home() {
   async function submitStock(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     if (!accessToken) return;
+    const payload = {
+      productId: stockForm.productId,
+      warehouseId: MAIN_WAREHOUSE_ID,
+      movementType: "PURCHASE_RECEIPT" as const,
+      quantity: stockForm.quantity,
+      note: stockForm.note || undefined
+    };
+
+    if (!isOnline) {
+      enqueueOfflineDraft("stock", payload);
+      return;
+    }
 
     await runAction(
       async () => {
-        await receiveStock(accessToken, {
-          productId: stockForm.productId,
-          warehouseId: MAIN_WAREHOUSE_ID,
-          movementType: "PURCHASE_RECEIPT",
-          quantity: stockForm.quantity,
-          note: stockForm.note || undefined
-        });
+        await receiveStock(accessToken, payload);
       },
       t("receiveStock")
     );
@@ -788,20 +894,26 @@ export default function Home() {
   async function submitInvoice(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     if (!accessToken) return;
+    const payload = {
+      customerId: invoiceForm.customerId,
+      items: invoiceForm.items.map((item) => ({
+        productId: item.productId,
+        quantity: item.quantity,
+        discountAmount: item.discountAmount || undefined
+      })),
+      initialPaymentMethod: invoiceForm.initialPaymentAmount > 0 ? invoiceForm.initialPaymentMethod : undefined,
+      initialPaymentAmount: invoiceForm.initialPaymentAmount > 0 ? invoiceForm.initialPaymentAmount : undefined,
+      paymentReference: invoiceForm.paymentReference || undefined
+    };
+
+    if (!isOnline) {
+      enqueueOfflineDraft("invoice", payload);
+      return;
+    }
 
     await runAction(
       async () => {
-        await createInvoice(accessToken, {
-          customerId: invoiceForm.customerId,
-          items: invoiceForm.items.map((item) => ({
-            productId: item.productId,
-            quantity: item.quantity,
-            discountAmount: item.discountAmount || undefined
-          })),
-          initialPaymentMethod: invoiceForm.initialPaymentAmount > 0 ? invoiceForm.initialPaymentMethod : undefined,
-          initialPaymentAmount: invoiceForm.initialPaymentAmount > 0 ? invoiceForm.initialPaymentAmount : undefined,
-          paymentReference: invoiceForm.paymentReference || undefined
-        });
+        await createInvoice(accessToken, payload);
       },
       t("createInvoice")
     );
@@ -810,16 +922,22 @@ export default function Home() {
   async function submitPayment(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     if (!accessToken) return;
+    const payload = {
+      customerId: paymentForm.customerId,
+      invoiceId: paymentForm.invoiceId || undefined,
+      method: paymentForm.method,
+      amount: paymentForm.amount,
+      reference: paymentForm.reference || undefined
+    };
+
+    if (!isOnline) {
+      enqueueOfflineDraft("payment", payload);
+      return;
+    }
 
     await runAction(
       async () => {
-        await recordPayment(accessToken, {
-          customerId: paymentForm.customerId,
-          invoiceId: paymentForm.invoiceId || undefined,
-          method: paymentForm.method,
-          amount: paymentForm.amount,
-          reference: paymentForm.reference || undefined
-        });
+        await recordPayment(accessToken, payload);
       },
       t("recordPayment")
     );
@@ -828,19 +946,28 @@ export default function Home() {
   async function submitReconciliation(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     if (!accessToken || !reconcileForm.tripId) return;
+    const payload = {
+      cashCollected: reconcileForm.cashCollected,
+      creditIssued: reconcileForm.creditIssued,
+      items: reconcileForm.items.map((item) => ({
+        itemId: item.itemId,
+        deliveredQuantity: item.deliveredQuantity,
+        returnedQuantity: item.returnedQuantity,
+        damagedQuantity: item.damagedQuantity
+      }))
+    };
+
+    if (!isOnline) {
+      enqueueOfflineDraft("reconcile", {
+        tripId: reconcileForm.tripId,
+        data: payload
+      });
+      return;
+    }
 
     await runAction(
       async () => {
-        await reconcileDeliveryTrip(accessToken, reconcileForm.tripId, {
-          cashCollected: reconcileForm.cashCollected,
-          creditIssued: reconcileForm.creditIssued,
-          items: reconcileForm.items.map((item) => ({
-            itemId: item.itemId,
-            deliveredQuantity: item.deliveredQuantity,
-            returnedQuantity: item.returnedQuantity,
-            damagedQuantity: item.damagedQuantity
-          }))
-        });
+        await reconcileDeliveryTrip(accessToken, reconcileForm.tripId, payload);
       },
       t("reconcileTruck")
     );
@@ -849,20 +976,26 @@ export default function Home() {
   async function submitDeliveryTrip(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     if (!accessToken) return;
+    const payload = {
+      warehouseId: MAIN_WAREHOUSE_ID,
+      vehicleId: deliveryForm.vehicleId,
+      driverId: deliveryForm.driverId,
+      route: deliveryForm.route,
+      allowNegativeStock: deliveryForm.allowNegativeStock || undefined,
+      items: deliveryForm.items.map((item) => ({
+        productId: item.productId,
+        loadedQuantity: item.loadedQuantity
+      }))
+    };
+
+    if (!isOnline) {
+      enqueueOfflineDraft("delivery", payload);
+      return;
+    }
 
     await runAction(
       async () => {
-        await createDeliveryTrip(accessToken, {
-          warehouseId: MAIN_WAREHOUSE_ID,
-          vehicleId: deliveryForm.vehicleId,
-          driverId: deliveryForm.driverId,
-          route: deliveryForm.route,
-          allowNegativeStock: deliveryForm.allowNegativeStock || undefined,
-          items: deliveryForm.items.map((item) => ({
-            productId: item.productId,
-            loadedQuantity: item.loadedQuantity
-          }))
-        });
+        await createDeliveryTrip(accessToken, payload);
       },
       t("deliveryTripCreated")
     );
@@ -1123,6 +1256,28 @@ export default function Home() {
           </section>
 
           {actionNotice ? <section className="status-banner success">{actionNotice}</section> : null}
+          {actionError ? <section className="status-banner danger">{actionError}</section> : null}
+
+          {isAuthenticated ? (
+            <section className={`sync-banner ${isOnline ? "online" : "offline"}`}>
+              <div>
+                <strong>{isOnline ? t("online") : t("offline")}</strong>
+                <span>
+                  {offlineDrafts.length > 0
+                    ? `${offlineDrafts.length} ${t("pendingDrafts")}`
+                    : t("noPendingDrafts")}
+                </span>
+              </div>
+              <button
+                className="ghost-button"
+                disabled={!isOnline || offlineDrafts.length === 0 || isSyncingDrafts}
+                onClick={() => void syncOfflineDrafts()}
+                type="button"
+              >
+                {isSyncingDrafts ? t("syncing") : t("syncNow")}
+              </button>
+            </section>
+          ) : null}
 
           {!isAuthenticated ? (
             <section className="panel">
