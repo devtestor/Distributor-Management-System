@@ -1,4 +1,4 @@
-import { ConflictException, Inject, Injectable, NotFoundException } from "@nestjs/common";
+import { BadRequestException, ConflictException, Inject, Injectable, NotFoundException } from "@nestjs/common";
 import { Prisma } from "@prisma/client";
 import { PrismaService } from "../prisma/prisma.service";
 import { CreateProductDto } from "./dto/create-product.dto";
@@ -118,5 +118,59 @@ export class ProductsService {
       orderBy: { createdAt: "desc" },
       take: 50
     });
+  }
+
+  async delete(id: string, actorUserId: string) {
+    const product = await this.prisma.product.findUnique({
+      where: { id },
+      include: {
+        _count: {
+          select: {
+            stockMovements: true,
+            invoiceItems: true,
+            emptyContainerMovements: true,
+            deliveryTripItems: true
+          }
+        }
+      }
+    });
+    if (!product) throw new NotFoundException("Product not found");
+
+    const relatedRecords =
+      product._count.stockMovements +
+      product._count.invoiceItems +
+      product._count.emptyContainerMovements +
+      product._count.deliveryTripItems;
+    if (relatedRecords > 0) {
+      throw new BadRequestException("This product has business history. Deactivate it instead.");
+    }
+
+    await this.prisma.$transaction(async (tx) => {
+      await tx.productPriceHistory.deleteMany({
+        where: { productId: id }
+      });
+
+      await tx.product.delete({
+        where: { id }
+      });
+
+      await tx.auditLog.create({
+        data: {
+          userId: actorUserId,
+          action: "PRODUCT_DELETED",
+          entity: "Product",
+          entityId: product.id,
+          metadata: {
+            sku: product.sku,
+            name: product.name
+          }
+        }
+      });
+    });
+
+    return {
+      id: product.id,
+      deletedById: actorUserId
+    };
   }
 }

@@ -45,6 +45,7 @@ import {
   createProduct,
   createInvoice,
   createUser,
+  deleteProduct,
   deleteUser,
   getProductPriceHistory,
   getCustomerBalance,
@@ -1191,6 +1192,21 @@ export default function Home() {
     );
   }
 
+  async function removeProduct(target: ApiProduct) {
+    if (!accessToken) return;
+    if (!window.confirm(t("deleteProductConfirm"))) return;
+
+    await runAction(
+      async () => {
+        await deleteProduct(accessToken, target.id);
+        if (productForm.productId === target.id) {
+          startCreateProduct();
+        }
+      },
+      t("productDeleted")
+    );
+  }
+
   return (
     <main className="app-shell">
       <aside className="sidebar">
@@ -1644,6 +1660,20 @@ export default function Home() {
                               : t("reactivate")}
                           </button>
                         ) : null}
+                        {productFormMode === "edit" && apiProducts.find((product) => product.id === productForm.productId) ? (
+                          <button
+                            className="danger-icon-button"
+                            disabled={isActionSubmitting}
+                            onClick={() => {
+                              const selected = apiProducts.find((product) => product.id === productForm.productId);
+                              if (selected) void removeProduct(selected);
+                            }}
+                            title={t("deleteProduct")}
+                            type="button"
+                          >
+                            <Trash2 size={16} aria-hidden="true" />
+                          </button>
+                        ) : null}
                       </div>
                     </form>
 
@@ -1657,6 +1687,7 @@ export default function Home() {
                             <th>{t("unitPrice")}</th>
                             <th>{t("reorder")}</th>
                             <th>{t("status")}</th>
+                            <th>{t("action")}</th>
                           </tr>
                         </thead>
                         <tbody>
@@ -1674,6 +1705,17 @@ export default function Home() {
                                 <span className={`badge ${product.isActive ? "good" : "danger"}`}>
                                   {product.isActive ? t("active") : t("inactive")}
                                 </span>
+                              </td>
+                              <td>
+                                <button
+                                  className="danger-icon-button"
+                                  disabled={isActionSubmitting}
+                                  onClick={() => void removeProduct(product)}
+                                  title={t("deleteProduct")}
+                                  type="button"
+                                >
+                                  <Trash2 size={16} aria-hidden="true" />
+                                </button>
                               </td>
                             </tr>
                           ))}

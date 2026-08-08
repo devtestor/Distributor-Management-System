@@ -620,6 +620,17 @@ td small {
   color: #a42824;
 }
 
+.danger-icon-button {
+  min-height: 34px;
+  width: 34px;
+  display: inline-grid;
+  place-items: center;
+  border: 1px solid #f0b8b4;
+  border-radius: 8px;
+  background: #fff7f6;
+  color: #a42824;
+}
+
 .entry-form {
   padding: 20px;
   display: grid;

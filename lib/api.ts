@@ -440,6 +440,13 @@ export function updateProduct(
   });
 }
 
+export function deleteProduct(accessToken: string, productId: string) {
+  return request<{ id: string; deletedById: string }>(`/products/${productId}`, {
+    method: "DELETE",
+    headers: authHeaders(accessToken)
+  });
+}
+
 export function getProductPriceHistory(accessToken: string, productId: string) {
   return request<ApiProductPriceHistory[]>(`/products/${productId}/price-history`, {
     headers: authHeaders(accessToken)

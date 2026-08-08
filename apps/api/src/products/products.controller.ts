@@ -1,4 +1,4 @@
-import { Body, Controller, Get, Inject, Param, Patch, Post, Req } from "@nestjs/common";
+import { Body, Controller, Delete, Get, Inject, Param, Patch, Post, Req } from "@nestjs/common";
 import type { AuthenticatedRequest } from "../common/authenticated-request";
 import { Roles } from "../common/roles.decorator";
 import { CreateProductDto } from "./dto/create-product.dto";
@@ -31,5 +31,11 @@ export class ProductsController {
   @Patch(":id")
   update(@Param("id") id: string, @Body() dto: UpdateProductDto, @Req() request: AuthenticatedRequest) {
     return this.productsService.update(id, dto, request.user.id);
+  }
+
+  @Roles("OWNER", "ADMIN")
+  @Delete(":id")
+  delete(@Param("id") id: string, @Req() request: AuthenticatedRequest) {
+    return this.productsService.delete(id, request.user.id);
   }
 }
