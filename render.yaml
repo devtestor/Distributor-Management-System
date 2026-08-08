@@ -11,8 +11,6 @@ services:
     envVars:
       - key: NODE_VERSION
         value: 24.18.0
-      - key: NODE_ENV
-        value: production
       - key: DATABASE_URL
         sync: false
       - key: JWT_SECRET
@@ -37,8 +35,6 @@ services:
     envVars:
       - key: NODE_VERSION
         value: 24.18.0
-      - key: NODE_ENV
-        value: production
       - key: NEXT_PUBLIC_API_URL
         fromService:
           type: web
