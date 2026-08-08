@@ -1349,7 +1349,7 @@ export default function Home() {
                 <div>
                   <h2>{activeSection === "dashboard" ? t("ownerCommand") : activeNavItem?.label}</h2>
                   <p>
-                    {t("overview")}. {t("systemScope")}
+                    {activeSection === "dashboard" ? t("overview") : t("systemScope")}
                   </p>
                 </div>
                 <div className="date-pill">
