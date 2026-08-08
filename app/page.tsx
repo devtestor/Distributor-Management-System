@@ -483,34 +483,38 @@ export default function Home() {
         const canReadDeliveryRecords =
           profile.role === "OWNER" || profile.role === "ADMIN" || profile.role === "WAREHOUSE_MANAGER" || profile.role === "DRIVER";
         const canReadVehicles = profile.role === "OWNER" || profile.role === "ADMIN" || profile.role === "WAREHOUSE_MANAGER";
-        const dashboard = canReadOwnerDashboard ? await optionalLiveData(getOwnerDashboard(token), null) : null;
-        const rawProducts = canReadProducts ? await optionalLiveData(getProducts(token), []) : [];
-        const stockItems = canReadInventory ? await optionalLiveData(getWarehouseStock(token, MAIN_WAREHOUSE_ID), []) : [];
-        const rawCustomers = canReadCustomers ? await optionalLiveData(getCustomers(token), []) : [];
-        const rawPayments = canReadFinancialRecords ? await optionalLiveData(getPayments(token), []) : [];
-        const rawTrips = canReadDeliveryRecords ? await optionalLiveData(getDeliveryTrips(token), []) : [];
-        const rawVehicles = canReadVehicles ? await optionalLiveData(getVehicles(token), []) : [];
-        const rawInvoices = canReadFinancialRecords ? await optionalLiveData(getInvoices(token), []) : [];
+        const [dashboard, rawProducts, stockItems, rawCustomers, rawPayments, rawTrips, rawVehicles, rawInvoices] = await Promise.all([
+          canReadOwnerDashboard ? optionalLiveData(getOwnerDashboard(token), null) : Promise.resolve(null),
+          canReadProducts ? optionalLiveData(getProducts(token), []) : Promise.resolve([]),
+          canReadInventory ? optionalLiveData(getWarehouseStock(token, MAIN_WAREHOUSE_ID), []) : Promise.resolve([]),
+          canReadCustomers ? optionalLiveData(getCustomers(token), []) : Promise.resolve([]),
+          canReadFinancialRecords ? optionalLiveData(getPayments(token), []) : Promise.resolve([]),
+          canReadDeliveryRecords ? optionalLiveData(getDeliveryTrips(token), []) : Promise.resolve([]),
+          canReadVehicles ? optionalLiveData(getVehicles(token), []) : Promise.resolve([]),
+          canReadFinancialRecords ? optionalLiveData(getInvoices(token), []) : Promise.resolve([])
+        ]);
 
         const canManageUsers = profile.role === "OWNER" || profile.role === "ADMIN";
         const isOwner = profile.role === "OWNER";
         const canReadReports = profile.role === "OWNER" || profile.role === "ACCOUNTANT";
-        const rawUsers = canManageUsers ? await optionalLiveData(getUsers(token), []) : [];
-        const rawRoles = canManageUsers ? await optionalLiveData(getRoles(token), []) : [];
-        const rawAuditLogs = isOwner ? await optionalLiveData(getAuditLogs(token), []) : [];
-        const rawSalesReport = canReadReports ? await optionalLiveData(getSalesReport(token), null) : null;
-        const rawStockReport = canReadReports ? await optionalLiveData(getStockReport(token), null) : null;
-        const rawDebtReport = canReadReports ? await optionalLiveData(getDebtReport(token), null) : null;
-        const rawEmptiesReport = canReadReports ? await optionalLiveData(getEmptiesReport(token), null) : null;
-        const balances: Customer[] = [];
-        for (const customer of rawCustomers) {
+        const [rawUsers, rawRoles, rawAuditLogs, rawSalesReport, rawStockReport, rawDebtReport, rawEmptiesReport] = await Promise.all([
+          canManageUsers ? optionalLiveData(getUsers(token), []) : Promise.resolve([]),
+          canManageUsers ? optionalLiveData(getRoles(token), []) : Promise.resolve([]),
+          isOwner ? optionalLiveData(getAuditLogs(token), []) : Promise.resolve([]),
+          canReadReports ? optionalLiveData(getSalesReport(token), null) : Promise.resolve(null),
+          canReadReports ? optionalLiveData(getStockReport(token), null) : Promise.resolve(null),
+          canReadReports ? optionalLiveData(getDebtReport(token), null) : Promise.resolve(null),
+          canReadReports ? optionalLiveData(getEmptiesReport(token), null) : Promise.resolve(null)
+        ]);
+        const balances: Customer[] = await Promise.all(
+          rawCustomers.map(async (customer) => {
           const balance = await optionalLiveData(getCustomerBalance(token, customer.id), {
             customer,
             outstanding: 0,
             emptyBalance: 0
           });
 
-          balances.push({
+          return {
             id: customer.id,
             name: customer.name,
             route: customer.route ?? "-",
@@ -519,8 +523,9 @@ export default function Home() {
             outstanding: balance.outstanding,
             emptiesBalance: balance.emptyBalance,
             lastOrder: customer.createdAt
-          });
-        }
+          };
+          })
+        );
 
         setOwnerDashboard(dashboard);
         setUser(profile);
@@ -784,11 +789,16 @@ export default function Home() {
     try {
       const response = await login(email, password);
       window.localStorage.setItem("accessToken", response.accessToken);
-      await loadLiveData(response.accessToken);
+      window.localStorage.setItem("user", JSON.stringify(response.user));
       setAccessToken(response.accessToken);
+      setUser(response.user);
+      setApiStatus("connected");
       if (locales.some((entry) => entry.code === response.user.preferredLocale)) {
         setLocale(response.user.preferredLocale as Locale);
       }
+      void loadLiveData(response.accessToken).catch((error) => {
+        setActionError(error instanceof Error ? error.message : t("genericActionFailed"));
+      });
     } catch (error) {
       setAccessToken(null);
       setUser(null);
