@@ -38,6 +38,12 @@ export type LoginResponse = {
   user: ApiUser;
 };
 
+export type ApiHealthResponse = {
+  status: string;
+  service: string;
+  timestamp: string;
+};
+
 export type OwnerDashboardResponse = {
   generatedAt: string;
   totals: {
@@ -223,7 +229,7 @@ export type ApiDeliveryTrip = {
   }>;
 };
 
-const apiBaseUrl = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:4000/api";
+const apiBaseUrl = process.env.NEXT_PUBLIC_API_URL ?? "/api";
 
 async function request<T>(path: string, options: RequestInit = {}) {
   const response = await fetch(`${apiBaseUrl}${path}`, {
@@ -247,6 +253,10 @@ export function login(email: string, password: string) {
     method: "POST",
     body: JSON.stringify({ email, password })
   });
+}
+
+export function getApiHealth() {
+  return request<ApiHealthResponse>("/health");
 }
 
 export function getOwnerDashboard(accessToken: string) {

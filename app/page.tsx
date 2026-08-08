@@ -43,6 +43,7 @@ import {
   getCustomers,
   getDeliveryTrips,
   getAuditLogs,
+  getApiHealth,
   getInvoices,
   getMe,
   getOwnerDashboard,
@@ -430,6 +431,10 @@ export default function Home() {
   );
 
   useEffect(() => {
+    void getApiHealth()
+      .then(() => setApiStatus("connected"))
+      .catch(() => setApiStatus("mock"));
+
     const storedToken = window.localStorage.getItem("accessToken");
     const storedUser = window.localStorage.getItem("user");
     if (storedUser) {
@@ -976,7 +981,9 @@ export default function Home() {
                   ? t("loadingData")
                   : apiStatus === "connected" && user
                     ? `${t("signedInAs")} ${user.fullName}. ${t("liveDataNote")}`
-                    : t("fallbackDataNote")}
+                    : apiStatus === "connected"
+                      ? t("signInLiveApi")
+                      : t("fallbackDataNote")}
               </p>
             </div>
 
@@ -1009,15 +1016,12 @@ export default function Home() {
               <div className="panel-header">
                 <div>
                   <h3>{t("login")}</h3>
-                  <span>Sign in to load live inventory, users, permissions, and audit activity.</span>
+                  <span>{t("signInLiveApi")}</span>
                 </div>
                 <ShieldCheck size={18} color="var(--brand)" aria-hidden="true" />
               </div>
               <div className="panel-body">
-                <p className="table-state">
-                  The previous screen kept showing demo business panels before authentication. That is why a hard refresh appeared to do
-                  nothing. Phase 1 owner and admin controls only appear after a successful login.
-                </p>
+                <p className="table-state">{t("loginRequired")}</p>
               </div>
             </section>
           ) : (

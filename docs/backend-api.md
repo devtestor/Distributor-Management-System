@@ -105,7 +105,7 @@ Authenticated:
 - The dashboard includes a login panel using `POST /api/auth/login`.
 - After login, it calls `GET /api/dashboard/owner` with the bearer token.
 - If the API or database is not running, the dashboard stays usable in demo mode with sample data.
-- Set `NEXT_PUBLIC_API_URL` if the API is not running on `http://localhost:4000/api`.
+- Set `NEXT_PUBLIC_API_URL=/api` when the frontend and API run in the same Vercel app.
 
 ## Remaining Backend Work
 

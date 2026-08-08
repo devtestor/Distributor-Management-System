@@ -14,12 +14,12 @@ Recommended Vercel settings:
 Required Vercel environment variable:
 
 ```bash
-NEXT_PUBLIC_API_URL=https://your-api-host.example.com/api
+NEXT_PUBLIC_API_URL=/api
 ```
 
 ## API Hosting
 
-The NestJS API in `apps/api` is a separate Node service. It should be hosted on a Node runtime such as Render, Railway, Fly.io, a VPS, or another backend host.
+The NestJS API in `apps/api` is deployed on Vercel through the `api/[...path].js` serverless adapter.
 
 Required API environment variables:
 
