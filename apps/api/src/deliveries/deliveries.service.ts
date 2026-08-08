@@ -1,4 +1,4 @@
-import { BadRequestException, Inject, Injectable, NotFoundException } from "@nestjs/common";
+import { BadRequestException, ForbiddenException, Inject, Injectable, NotFoundException } from "@nestjs/common";
 import { DeliveryStatus, Prisma, StockMovementType } from "@prisma/client";
 import { PrismaService } from "../prisma/prisma.service";
 import { CreateDeliveryTripDto } from "./dto/create-delivery-trip.dto";
@@ -8,8 +8,9 @@ import { ReconcileDeliveryTripDto } from "./dto/reconcile-delivery-trip.dto";
 export class DeliveriesService {
   constructor(@Inject(PrismaService) private readonly prisma: PrismaService) {}
 
-  list() {
+  list(actorUserId: string, actorRole: string) {
     return this.prisma.deliveryTrip.findMany({
+      where: actorRole === "DRIVER" ? { driverId: actorUserId } : undefined,
       include: { driver: true, vehicle: true, items: { include: { product: true } } },
       orderBy: { createdAt: "desc" }
     });
@@ -89,6 +90,12 @@ export class DeliveriesService {
     });
 
     if (!trip) throw new NotFoundException("Delivery trip not found");
+    if (trip.driverId !== actorUserId) {
+      const actor = await this.prisma.user.findUnique({ where: { id: actorUserId }, include: { role: true } });
+      if (!actor || !["OWNER", "ADMIN", "WAREHOUSE_MANAGER"].includes(actor.role.name)) {
+        throw new ForbiddenException("Driver can only reconcile assigned trips");
+      }
+    }
     if (trip.status === DeliveryStatus.CLOSED) {
       throw new BadRequestException("Delivery trip is already closed");
     }

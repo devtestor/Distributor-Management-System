@@ -7,6 +7,7 @@ import { CustomersService } from "./customers.service";
 export class CustomersController {
   constructor(@Inject(CustomersService) private readonly customersService: CustomersService) {}
 
+  @Roles("OWNER", "ADMIN", "ACCOUNTANT", "SALESPERSON")
   @Get()
   list() {
     return this.customersService.list();
@@ -24,11 +25,13 @@ export class CustomersController {
     return this.customersService.getDebtAging();
   }
 
+  @Roles("OWNER", "ADMIN", "ACCOUNTANT", "SALESPERSON")
   @Get(":id/balance")
   balance(@Param("id") id: string) {
     return this.customersService.getBalance(id);
   }
 
+  @Roles("OWNER", "ADMIN", "ACCOUNTANT", "SALESPERSON")
   @Get(":id/account-history")
   accountHistory(@Param("id") id: string) {
     return this.customersService.getAccountHistory(id);

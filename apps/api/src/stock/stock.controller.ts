@@ -10,6 +10,7 @@ import { StockService } from "./stock.service";
 export class StockController {
   constructor(@Inject(StockService) private readonly stockService: StockService) {}
 
+  @Roles("OWNER", "ADMIN", "WAREHOUSE_MANAGER")
   @Get("warehouses")
   warehouses() {
     return this.stockService.listWarehouses();
@@ -21,6 +22,7 @@ export class StockController {
     return this.stockService.listMovements();
   }
 
+  @Roles("OWNER", "ADMIN", "WAREHOUSE_MANAGER")
   @Get("warehouses/:id/stock")
   warehouseStock(@Param("id") warehouseId: string) {
     return this.stockService.getWarehouseStock(warehouseId);

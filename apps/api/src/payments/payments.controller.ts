@@ -8,6 +8,7 @@ import { PaymentsService } from "./payments.service";
 export class PaymentsController {
   constructor(@Inject(PaymentsService) private readonly paymentsService: PaymentsService) {}
 
+  @Roles("OWNER", "ADMIN", "ACCOUNTANT", "SALESPERSON")
   @Get()
   list() {
     return this.paymentsService.list();

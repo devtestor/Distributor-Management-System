@@ -9,6 +9,7 @@ import { ProductsService } from "./products.service";
 export class ProductsController {
   constructor(@Inject(ProductsService) private readonly productsService: ProductsService) {}
 
+  @Roles("OWNER", "ADMIN", "WAREHOUSE_MANAGER", "SALESPERSON")
   @Get()
   list() {
     return this.productsService.list();

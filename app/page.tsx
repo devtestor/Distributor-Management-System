@@ -127,7 +127,7 @@ const navItemConfig: NavItemConfig[] = [
     key: "dashboard",
     labelKey: "dashboard",
     icon: Gauge,
-    roles: ["OWNER", "ADMIN", "WAREHOUSE_MANAGER", "SALESPERSON", "DRIVER", "ACCOUNTANT"]
+    roles: ["OWNER", "ADMIN", "WAREHOUSE_MANAGER", "SALESPERSON", "ACCOUNTANT"]
   },
   { key: "inventory", labelKey: "inventory", icon: Boxes, roles: ["OWNER", "ADMIN", "WAREHOUSE_MANAGER"] },
   { key: "customers", labelKey: "customers", icon: Users, roles: ["OWNER", "ADMIN", "SALESPERSON", "ACCOUNTANT"] },
@@ -461,14 +461,27 @@ export default function Home() {
       try {
         const profile = await getMe(token);
         const canReadOwnerDashboard = profile.role === "OWNER" || profile.role === "ADMIN" || profile.role === "ACCOUNTANT";
+        const canReadInventory = profile.role === "OWNER" || profile.role === "ADMIN" || profile.role === "WAREHOUSE_MANAGER";
+        const canReadProducts =
+          profile.role === "OWNER" ||
+          profile.role === "ADMIN" ||
+          profile.role === "WAREHOUSE_MANAGER" ||
+          profile.role === "SALESPERSON";
+        const canReadCustomers =
+          profile.role === "OWNER" || profile.role === "ADMIN" || profile.role === "ACCOUNTANT" || profile.role === "SALESPERSON";
+        const canReadFinancialRecords =
+          profile.role === "OWNER" || profile.role === "ADMIN" || profile.role === "ACCOUNTANT" || profile.role === "SALESPERSON";
+        const canReadDeliveryRecords =
+          profile.role === "OWNER" || profile.role === "ADMIN" || profile.role === "WAREHOUSE_MANAGER" || profile.role === "DRIVER";
+        const canReadVehicles = profile.role === "OWNER" || profile.role === "ADMIN" || profile.role === "WAREHOUSE_MANAGER";
         const dashboard = canReadOwnerDashboard ? await getOwnerDashboard(token) : null;
-        const rawProducts = await getProducts(token);
-        const stockItems = await getWarehouseStock(token, MAIN_WAREHOUSE_ID);
-        const rawCustomers = await getCustomers(token);
-        const rawPayments = await getPayments(token);
-        const rawTrips = await getDeliveryTrips(token);
-        const rawVehicles = await getVehicles(token);
-        const rawInvoices = await getInvoices(token);
+        const rawProducts = canReadProducts ? await getProducts(token) : [];
+        const stockItems = canReadInventory ? await getWarehouseStock(token, MAIN_WAREHOUSE_ID) : [];
+        const rawCustomers = canReadCustomers ? await getCustomers(token) : [];
+        const rawPayments = canReadFinancialRecords ? await getPayments(token) : [];
+        const rawTrips = canReadDeliveryRecords ? await getDeliveryTrips(token) : [];
+        const rawVehicles = canReadVehicles ? await getVehicles(token) : [];
+        const rawInvoices = canReadFinancialRecords ? await getInvoices(token) : [];
 
         const canManageUsers = profile.role === "OWNER" || profile.role === "ADMIN";
         const isOwner = profile.role === "OWNER";

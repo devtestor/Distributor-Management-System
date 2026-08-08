@@ -8,11 +8,13 @@ import { InvoicesService } from "./invoices.service";
 export class InvoicesController {
   constructor(@Inject(InvoicesService) private readonly invoicesService: InvoicesService) {}
 
+  @Roles("OWNER", "ADMIN", "ACCOUNTANT", "SALESPERSON")
   @Get()
   list() {
     return this.invoicesService.list();
   }
 
+  @Roles("OWNER", "ADMIN", "ACCOUNTANT", "SALESPERSON")
   @Get(":id")
   get(@Param("id") id: string) {
     return this.invoicesService.get(id);

@@ -9,11 +9,13 @@ import { DeliveriesService } from "./deliveries.service";
 export class DeliveriesController {
   constructor(@Inject(DeliveriesService) private readonly deliveriesService: DeliveriesService) {}
 
+  @Roles("OWNER", "ADMIN", "WAREHOUSE_MANAGER", "DRIVER")
   @Get()
-  list() {
-    return this.deliveriesService.list();
+  list(@Req() request: AuthenticatedRequest) {
+    return this.deliveriesService.list(request.user.id, request.user.role);
   }
 
+  @Roles("OWNER", "ADMIN", "WAREHOUSE_MANAGER")
   @Get("vehicles")
   vehicles() {
     return this.deliveriesService.listVehicles();

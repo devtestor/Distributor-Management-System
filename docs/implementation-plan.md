@@ -466,7 +466,11 @@ Current status:
 - Role metadata and JWT guard have been added.
 - `GET /api/me` has been added.
 - Frontend login panel has been added.
-- Frontend protected navigation is still pending.
+- Frontend protected navigation has been added.
+- Backend read endpoints now restrict inventory, customer, payment, invoice, product, warehouse, and vehicle data by role.
+- Driver delivery lists are scoped to assigned trips only, and drivers can only reconcile their own assigned trips.
+- Frontend live-data loading now requests only the datasets allowed for the signed-in role.
+- Customer assignment scoping for salesperson accounts is still pending because the current schema does not yet have a customer-to-salesperson assignment relation.
 
 ## Milestone 4: Inventory Operations
 
