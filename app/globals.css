@@ -671,6 +671,22 @@ td small {
   border-top: 1px solid var(--line);
 }
 
+.report-grid {
+  display: grid;
+  gap: 18px;
+}
+
+.report-kpis {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  padding: 14px 18px;
+  border-bottom: 1px solid var(--line);
+  color: var(--muted);
+  font-size: 13px;
+  font-weight: 700;
+}
+
 .inline-button {
   min-height: 32px;
   padding: 0 10px;

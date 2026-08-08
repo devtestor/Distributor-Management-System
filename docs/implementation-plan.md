@@ -617,6 +617,17 @@ Acceptance criteria:
 - Reports export to CSV.
 - Monthly profit accounts for expenses and losses.
 
+Current status:
+
+- Sales report endpoint has been added with date-range filters.
+- Stock valuation report endpoint has been added.
+- Customer debt report endpoint has been added.
+- Empty container exposure report endpoint has been added.
+- Reports screen now renders sales, stock, debt, and empty-container reports.
+- CSV export has been added for the implemented reports.
+- Driver reconciliation, route performance, product profitability, and monthly profit/loss reports are still pending.
+- Expense capture is still pending, so monthly profit/loss cannot be completed yet.
+
 ## Milestone 9: Offline PWA
 
 Goal:

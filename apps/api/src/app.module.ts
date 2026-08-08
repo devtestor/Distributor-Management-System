@@ -12,6 +12,7 @@ import { InvoicesModule } from "./invoices/invoices.module";
 import { PaymentsModule } from "./payments/payments.module";
 import { PrismaModule } from "./prisma/prisma.module";
 import { ProductsModule } from "./products/products.module";
+import { ReportsModule } from "./reports/reports.module";
 import { StockModule } from "./stock/stock.module";
 import { UsersModule } from "./users/users.module";
 
@@ -30,7 +31,8 @@ import { UsersModule } from "./users/users.module";
     InvoicesModule,
     PaymentsModule,
     EmptyContainersModule,
-    DeliveriesModule
+    DeliveriesModule,
+    ReportsModule
   ],
   controllers: [HealthController],
   providers: [

@@ -241,6 +241,89 @@ export type ApiVehicle = {
   } | null;
 };
 
+export type ApiSalesReport = {
+  from: string | null;
+  to: string | null;
+  totals: {
+    invoices: number;
+    sales: number;
+    collected: number;
+    credit: number;
+    grossMargin: number;
+  };
+  products: Array<{
+    productId: string;
+    sku: string;
+    name: string;
+    quantity: number;
+    revenue: number;
+    grossMargin: number;
+  }>;
+  invoices: Array<{
+    id: string;
+    invoiceNumber: string;
+    customer: string;
+    totalAmount: number;
+    paidAmount: number;
+    paymentStatus: string;
+    createdAt: string;
+  }>;
+};
+
+export type ApiStockReport = {
+  totals: {
+    products: number;
+    stockValue: number;
+    lowStock: number;
+  };
+  rows: Array<{
+    productId: string;
+    sku: string;
+    name: string;
+    brand: string;
+    quantity: number;
+    unitCost: number;
+    unitPrice: number;
+    stockValue: number;
+    reorderLevel: number;
+    needsReorder: boolean;
+  }>;
+};
+
+export type ApiDebtReport = {
+  totals: {
+    outstanding: number;
+    invoices: number;
+    over90Days: number;
+  };
+  rows: Array<{
+    invoiceId: string;
+    invoiceNumber: string;
+    customer: string;
+    route: string | null;
+    totalAmount: number;
+    paidAmount: number;
+    outstanding: number;
+    ageDays: number;
+    bucket: string;
+    createdAt: string;
+  }>;
+};
+
+export type ApiEmptiesReport = {
+  totals: {
+    exposure: number;
+    customers: number;
+  };
+  rows: Array<{
+    customerId: string;
+    customer: string;
+    route: string | null;
+    balance: number;
+    movements: number;
+  }>;
+};
+
 const apiBaseUrl = process.env.NEXT_PUBLIC_API_URL ?? "/api";
 
 async function request<T>(path: string, options: RequestInit = {}) {
@@ -418,6 +501,35 @@ export function getRoles(accessToken: string) {
 
 export function getAuditLogs(accessToken: string) {
   return request<ApiAuditLog[]>("/audit-logs", {
+    headers: authHeaders(accessToken)
+  });
+}
+
+export function getSalesReport(accessToken: string, params: { from?: string; to?: string } = {}) {
+  const query = new URLSearchParams();
+  if (params.from) query.set("from", params.from);
+  if (params.to) query.set("to", params.to);
+  const suffix = query.toString() ? `?${query.toString()}` : "";
+
+  return request<ApiSalesReport>(`/reports/sales${suffix}`, {
+    headers: authHeaders(accessToken)
+  });
+}
+
+export function getStockReport(accessToken: string) {
+  return request<ApiStockReport>("/reports/stock", {
+    headers: authHeaders(accessToken)
+  });
+}
+
+export function getDebtReport(accessToken: string) {
+  return request<ApiDebtReport>("/reports/debt", {
+    headers: authHeaders(accessToken)
+  });
+}
+
+export function getEmptiesReport(accessToken: string) {
+  return request<ApiEmptiesReport>("/reports/empties", {
     headers: authHeaders(accessToken)
   });
 }

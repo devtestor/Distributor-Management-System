@@ -33,6 +33,10 @@ import {
   ApiProduct,
   ApiProductPriceHistory,
   ApiRole,
+  ApiDebtReport,
+  ApiEmptiesReport,
+  ApiSalesReport,
+  ApiStockReport,
   ApiUser,
   ApiVehicle,
   ApiWarehouseStockItem,
@@ -54,6 +58,10 @@ import {
   getPayments,
   getProducts,
   getRoles,
+  getDebtReport,
+  getEmptiesReport,
+  getSalesReport,
+  getStockReport,
   getUsers,
   getVehicles,
   getWarehouseStock,
@@ -275,6 +283,25 @@ function emptyProductForm() {
   };
 }
 
+function csvEscape(value: string | number | boolean | null | undefined) {
+  const text = value === null || value === undefined ? "" : String(value);
+  return `"${text.replaceAll('"', '""')}"`;
+}
+
+function downloadCsv(filename: string, rows: Array<Record<string, string | number | boolean | null | undefined>>) {
+  if (rows.length === 0) return;
+  const headers = Object.keys(rows[0]);
+  const csv = [headers.map(csvEscape).join(","), ...rows.map((row) => headers.map((header) => csvEscape(row[header])).join(","))].join(
+    "\n"
+  );
+  const url = URL.createObjectURL(new Blob([csv], { type: "text/csv;charset=utf-8" }));
+  const link = document.createElement("a");
+  link.href = url;
+  link.download = filename;
+  link.click();
+  URL.revokeObjectURL(url);
+}
+
 function buildReconcileItems(trip: ApiDeliveryTrip | undefined): ReconcileFormItem[] {
   if (!trip) return [];
 
@@ -309,6 +336,10 @@ export default function Home() {
   const [apiUsers, setApiUsers] = useState<ApiUser[]>([]);
   const [apiRoles, setApiRoles] = useState<ApiRole[]>([]);
   const [apiAuditLogs, setApiAuditLogs] = useState<ApiAuditLog[]>([]);
+  const [salesReport, setSalesReport] = useState<ApiSalesReport | null>(null);
+  const [stockReport, setStockReport] = useState<ApiStockReport | null>(null);
+  const [debtReport, setDebtReport] = useState<ApiDebtReport | null>(null);
+  const [emptiesReport, setEmptiesReport] = useState<ApiEmptiesReport | null>(null);
   const [productPriceHistory, setProductPriceHistory] = useState<ApiProductPriceHistory[]>([]);
   const [productFormMode, setProductFormMode] = useState<ProductFormMode>("edit");
   const [apiStatus, setApiStatus] = useState<"mock" | "connected">("mock");
@@ -385,6 +416,10 @@ export default function Home() {
     setApiUsers([]);
     setApiRoles([]);
     setApiAuditLogs([]);
+    setSalesReport(null);
+    setStockReport(null);
+    setDebtReport(null);
+    setEmptiesReport(null);
     setProductPriceHistory([]);
   }, []);
 
@@ -406,9 +441,14 @@ export default function Home() {
 
         const canManageUsers = profile.role === "OWNER" || profile.role === "ADMIN";
         const isOwner = profile.role === "OWNER";
+        const canReadReports = profile.role === "OWNER" || profile.role === "ACCOUNTANT";
         const rawUsers = canManageUsers ? await getUsers(token) : [];
         const rawRoles = canManageUsers ? await getRoles(token) : [];
         const rawAuditLogs = isOwner ? await getAuditLogs(token) : [];
+        const rawSalesReport = canReadReports ? await getSalesReport(token) : null;
+        const rawStockReport = canReadReports ? await getStockReport(token) : null;
+        const rawDebtReport = canReadReports ? await getDebtReport(token) : null;
+        const rawEmptiesReport = canReadReports ? await getEmptiesReport(token) : null;
         const balances: Customer[] = [];
         for (const customer of rawCustomers) {
           const balance = await getCustomerBalance(token, customer.id);
@@ -435,6 +475,10 @@ export default function Home() {
         setApiUsers(rawUsers);
         setApiRoles(rawRoles);
         setApiAuditLogs(rawAuditLogs);
+        setSalesReport(rawSalesReport);
+        setStockReport(rawStockReport);
+        setDebtReport(rawDebtReport);
+        setEmptiesReport(rawEmptiesReport);
         setLiveProducts(stockItems.map((item) => mapLiveProduct(item, rawProducts.find((product) => product.id === item.id))));
         setLiveCustomers(balances);
         setLivePayments(rawPayments.map(mapLivePayment));
@@ -1858,46 +1902,264 @@ export default function Home() {
               </section>
               ) : null}
 
-              {activeSection === "reports" && user?.role === "OWNER" ? (
-                <article className="panel">
-              <div className="panel-header">
-                <div>
-                  <h3>{t("auditTrail")}</h3>
-                  <span>{t("recentSecurityActivity")}</span>
-                </div>
-                <ShieldCheck size={18} color="var(--brand)" aria-hidden="true" />
-              </div>
-              <div className="table-wrap">
-                <table>
-                  <thead>
-                    <tr>
-                      <th>{t("action")}</th>
-                      <th>{t("actor")}</th>
-                      <th>{t("time")}</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {apiAuditLogs.map((entry) => (
-                      <tr key={entry.id}>
-                        <td>{titleCaseEnum(entry.action)}</td>
-                        <td>
-                          <strong>{entry.user?.fullName ?? "-"}</strong>
-                          <small>{entry.user?.role.name ?? "-"}</small>
-                        </td>
-                        <td>{new Date(entry.createdAt).toLocaleString("en-RW")}</td>
-                      </tr>
-                    ))}
-                    {apiAuditLogs.length === 0 ? (
-                      <tr>
-                        <td className="table-state" colSpan={3}>
-                          {isLiveDataLoading ? t("loadingData") : t("noRecords")}
-                        </td>
-                      </tr>
-                    ) : null}
-                  </tbody>
-                </table>
-              </div>
-                </article>
+              {activeSection === "reports" ? (
+                <section className="report-grid">
+                  <article className="panel">
+                    <div className="panel-header">
+                      <div>
+                        <h3>{t("salesReport")}</h3>
+                        <span>{salesReport ? money(salesReport.totals.sales) : t("loadingData")}</span>
+                      </div>
+                      <button
+                        className="ghost-button"
+                        disabled={!salesReport?.invoices.length}
+                        onClick={() =>
+                          downloadCsv(
+                            "sales-report.csv",
+                            salesReport?.invoices.map((invoice) => ({
+                              invoiceNumber: invoice.invoiceNumber,
+                              customer: invoice.customer,
+                              totalAmount: invoice.totalAmount,
+                              paidAmount: invoice.paidAmount,
+                              paymentStatus: invoice.paymentStatus,
+                              createdAt: invoice.createdAt
+                            })) ?? []
+                          )
+                        }
+                        type="button"
+                      >
+                        {t("exportCsv")}
+                      </button>
+                    </div>
+                    <div className="report-kpis">
+                      <span>{t("collected")}: {money(salesReport?.totals.collected ?? 0)}</span>
+                      <span>{t("credit")}: {money(salesReport?.totals.credit ?? 0)}</span>
+                      <span>{t("grossMargin")}: {money(salesReport?.totals.grossMargin ?? 0)}</span>
+                    </div>
+                    <div className="table-wrap">
+                      <table>
+                        <thead>
+                          <tr>
+                            <th>{t("product")}</th>
+                            <th>{t("quantity")}</th>
+                            <th>{t("amount")}</th>
+                            <th>{t("grossMargin")}</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {salesReport?.products.map((product) => (
+                            <tr key={product.productId}>
+                              <td>
+                                <strong>{product.name}</strong>
+                                <small>{product.sku}</small>
+                              </td>
+                              <td>{product.quantity}</td>
+                              <td>{money(product.revenue)}</td>
+                              <td>{money(product.grossMargin)}</td>
+                            </tr>
+                          ))}
+                          {!salesReport?.products.length ? (
+                            <tr>
+                              <td className="table-state" colSpan={4}>
+                                {isLiveDataLoading ? t("loadingData") : t("noRecords")}
+                              </td>
+                            </tr>
+                          ) : null}
+                        </tbody>
+                      </table>
+                    </div>
+                  </article>
+
+                  <article className="panel">
+                    <div className="panel-header">
+                      <div>
+                        <h3>{t("stockValuationReport")}</h3>
+                        <span>{money(stockReport?.totals.stockValue ?? 0)}</span>
+                      </div>
+                      <button
+                        className="ghost-button"
+                        disabled={!stockReport?.rows.length}
+                        onClick={() => downloadCsv("stock-report.csv", stockReport?.rows ?? [])}
+                        type="button"
+                      >
+                        {t("exportCsv")}
+                      </button>
+                    </div>
+                    <div className="table-wrap">
+                      <table>
+                        <thead>
+                          <tr>
+                            <th>{t("product")}</th>
+                            <th>{t("stock")}</th>
+                            <th>{t("stockValue")}</th>
+                            <th>{t("status")}</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {stockReport?.rows.slice(0, 8).map((row) => (
+                            <tr key={row.productId}>
+                              <td>
+                                <strong>{row.name}</strong>
+                                <small>{row.sku}</small>
+                              </td>
+                              <td>{row.quantity}</td>
+                              <td>{money(row.stockValue)}</td>
+                              <td>
+                                <span className={`badge ${row.needsReorder ? "danger" : "good"}`}>
+                                  {row.needsReorder ? t("reorderNow") : t("healthy")}
+                                </span>
+                              </td>
+                            </tr>
+                          ))}
+                          {!stockReport?.rows.length ? (
+                            <tr>
+                              <td className="table-state" colSpan={4}>
+                                {isLiveDataLoading ? t("loadingData") : t("noRecords")}
+                              </td>
+                            </tr>
+                          ) : null}
+                        </tbody>
+                      </table>
+                    </div>
+                  </article>
+
+                  <article className="panel">
+                    <div className="panel-header">
+                      <div>
+                        <h3>{t("customerDebtReport")}</h3>
+                        <span>{money(debtReport?.totals.outstanding ?? 0)}</span>
+                      </div>
+                      <button
+                        className="ghost-button"
+                        disabled={!debtReport?.rows.length}
+                        onClick={() => downloadCsv("debt-report.csv", debtReport?.rows ?? [])}
+                        type="button"
+                      >
+                        {t("exportCsv")}
+                      </button>
+                    </div>
+                    <div className="table-wrap">
+                      <table>
+                        <thead>
+                          <tr>
+                            <th>{t("customer")}</th>
+                            <th>{t("outstanding")}</th>
+                            <th>{t("age")}</th>
+                            <th>{t("status")}</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {debtReport?.rows.slice(0, 8).map((row) => (
+                            <tr key={row.invoiceId}>
+                              <td>
+                                <strong>{row.customer}</strong>
+                                <small>{row.invoiceNumber}</small>
+                              </td>
+                              <td>{money(row.outstanding)}</td>
+                              <td>{row.ageDays}</td>
+                              <td>{row.bucket}</td>
+                            </tr>
+                          ))}
+                          {!debtReport?.rows.length ? (
+                            <tr>
+                              <td className="table-state" colSpan={4}>
+                                {isLiveDataLoading ? t("loadingData") : t("noRecords")}
+                              </td>
+                            </tr>
+                          ) : null}
+                        </tbody>
+                      </table>
+                    </div>
+                  </article>
+
+                  <article className="panel">
+                    <div className="panel-header">
+                      <div>
+                        <h3>{t("emptyContainerReport")}</h3>
+                        <span>{(emptiesReport?.totals.exposure ?? 0).toLocaleString()}</span>
+                      </div>
+                      <button
+                        className="ghost-button"
+                        disabled={!emptiesReport?.rows.length}
+                        onClick={() => downloadCsv("empties-report.csv", emptiesReport?.rows ?? [])}
+                        type="button"
+                      >
+                        {t("exportCsv")}
+                      </button>
+                    </div>
+                    <div className="table-wrap">
+                      <table>
+                        <thead>
+                          <tr>
+                            <th>{t("customer")}</th>
+                            <th>{t("route")}</th>
+                            <th>{t("empties")}</th>
+                            <th>{t("movements")}</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {emptiesReport?.rows.slice(0, 8).map((row) => (
+                            <tr key={row.customerId}>
+                              <td>{row.customer}</td>
+                              <td>{row.route ?? "-"}</td>
+                              <td>{row.balance}</td>
+                              <td>{row.movements}</td>
+                            </tr>
+                          ))}
+                          {!emptiesReport?.rows.length ? (
+                            <tr>
+                              <td className="table-state" colSpan={4}>
+                                {isLiveDataLoading ? t("loadingData") : t("noRecords")}
+                              </td>
+                            </tr>
+                          ) : null}
+                        </tbody>
+                      </table>
+                    </div>
+                  </article>
+
+                  {user?.role === "OWNER" ? (
+                    <article className="panel">
+                      <div className="panel-header">
+                        <div>
+                          <h3>{t("auditTrail")}</h3>
+                          <span>{t("recentSecurityActivity")}</span>
+                        </div>
+                        <ShieldCheck size={18} color="var(--brand)" aria-hidden="true" />
+                      </div>
+                      <div className="table-wrap">
+                        <table>
+                          <thead>
+                            <tr>
+                              <th>{t("action")}</th>
+                              <th>{t("actor")}</th>
+                              <th>{t("time")}</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {apiAuditLogs.map((entry) => (
+                              <tr key={entry.id}>
+                                <td>{titleCaseEnum(entry.action)}</td>
+                                <td>
+                                  <strong>{entry.user?.fullName ?? "-"}</strong>
+                                  <small>{entry.user?.role.name ?? "-"}</small>
+                                </td>
+                                <td>{new Date(entry.createdAt).toLocaleString("en-RW")}</td>
+                              </tr>
+                            ))}
+                            {apiAuditLogs.length === 0 ? (
+                              <tr>
+                                <td className="table-state" colSpan={3}>
+                                  {isLiveDataLoading ? t("loadingData") : t("noRecords")}
+                                </td>
+                              </tr>
+                            ) : null}
+                          </tbody>
+                        </table>
+                      </div>
+                    </article>
+                  ) : null}
+                </section>
               ) : null}
             </>
           )}
