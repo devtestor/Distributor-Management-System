@@ -1,4 +1,4 @@
-import { CanActivate, ExecutionContext, Inject, Injectable, UnauthorizedException } from "@nestjs/common";
+import { CanActivate, ExecutionContext, ForbiddenException, Inject, Injectable, UnauthorizedException } from "@nestjs/common";
 import { Reflector } from "@nestjs/core";
 import { JwtService } from "@nestjs/jwt";
 import { PrismaService } from "../prisma/prisma.service";
@@ -56,7 +56,7 @@ export class JwtAuthGuard implements CanActivate {
     ]);
 
     if (allowedRoles?.length && !allowedRoles.includes(user.role.name)) {
-      throw new UnauthorizedException("Insufficient role permissions");
+      throw new ForbiddenException("Insufficient role permissions");
     }
 
     request.user = {

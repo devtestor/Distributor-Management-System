@@ -3,6 +3,7 @@ import { ConfigModule } from "@nestjs/config";
 import { APP_GUARD } from "@nestjs/core";
 import { AuthModule } from "./auth/auth.module";
 import { JwtAuthGuard } from "./auth/jwt-auth.guard";
+import { validateEnvironment } from "./config/validate-env";
 import { CustomersModule } from "./customers/customers.module";
 import { DashboardModule } from "./dashboard/dashboard.module";
 import { DeliveriesModule } from "./deliveries/deliveries.module";
@@ -19,7 +20,8 @@ import { UsersModule } from "./users/users.module";
 @Module({
   imports: [
     ConfigModule.forRoot({
-      isGlobal: true
+      isGlobal: true,
+      validate: validateEnvironment
     }),
     PrismaModule,
     UsersModule,

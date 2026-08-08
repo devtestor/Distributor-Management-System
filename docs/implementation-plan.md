@@ -692,6 +692,9 @@ Current status:
 - Production migration script `prisma:deploy` has been added.
 - Deployment documentation has been expanded with Render, Docker, backup, logging, and monitoring notes.
 - Production runbook has been added.
+- Principal engineering audit has been added to define the remaining path to business-grade software.
+- API startup now validates required environment variables and rejects weak JWT secrets.
+- Login throttling has been added for repeated failed attempts.
 - Basic user training notes have been added.
 - External managed database backup scheduling still needs to be enabled in the selected PostgreSQL provider.
 - Structured error monitoring provider is still pending.
