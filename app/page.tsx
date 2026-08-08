@@ -369,41 +369,36 @@ export default function Home() {
       setIsLiveDataLoading(true);
 
       try {
-        const [profile, dashboard, rawProducts, stockItems, rawCustomers, rawPayments, rawTrips, rawInvoices] = await Promise.all([
-          getMe(token),
-          getOwnerDashboard(token),
-          getProducts(token),
-          getWarehouseStock(token, MAIN_WAREHOUSE_ID),
-          getCustomers(token),
-          getPayments(token),
-          getDeliveryTrips(token),
-          getInvoices(token)
-        ]);
+        const profile = await getMe(token);
+        const canReadOwnerDashboard = profile.role === "OWNER" || profile.role === "ADMIN" || profile.role === "ACCOUNTANT";
+        const dashboard = canReadOwnerDashboard ? await getOwnerDashboard(token) : null;
+        const rawProducts = await getProducts(token);
+        const stockItems = await getWarehouseStock(token, MAIN_WAREHOUSE_ID);
+        const rawCustomers = await getCustomers(token);
+        const rawPayments = await getPayments(token);
+        const rawTrips = await getDeliveryTrips(token);
+        const rawInvoices = await getInvoices(token);
 
         const canManageUsers = profile.role === "OWNER" || profile.role === "ADMIN";
         const isOwner = profile.role === "OWNER";
-        const [rawUsers, rawRoles, rawAuditLogs] = await Promise.all([
-          canManageUsers ? getUsers(token) : Promise.resolve([]),
-          canManageUsers ? getRoles(token) : Promise.resolve([]),
-          isOwner ? getAuditLogs(token) : Promise.resolve([])
-        ]);
+        const rawUsers = canManageUsers ? await getUsers(token) : [];
+        const rawRoles = canManageUsers ? await getRoles(token) : [];
+        const rawAuditLogs = isOwner ? await getAuditLogs(token) : [];
+        const balances: Customer[] = [];
+        for (const customer of rawCustomers) {
+          const balance = await getCustomerBalance(token, customer.id);
 
-        const balances = await Promise.all(
-          rawCustomers.map(async (customer) => {
-            const balance = await getCustomerBalance(token, customer.id);
-
-            return {
-              id: customer.id,
-              name: customer.name,
-              route: customer.route ?? "-",
-              phone: customer.phone ?? "-",
-              creditLimit: asNumber(customer.creditLimit),
-              outstanding: balance.outstanding,
-              emptiesBalance: balance.emptyBalance,
-              lastOrder: customer.createdAt
-            } satisfies Customer;
-          })
-        );
+          balances.push({
+            id: customer.id,
+            name: customer.name,
+            route: customer.route ?? "-",
+            phone: customer.phone ?? "-",
+            creditLimit: asNumber(customer.creditLimit),
+            outstanding: balance.outstanding,
+            emptiesBalance: balance.emptyBalance,
+            lastOrder: customer.createdAt
+          });
+        }
 
         setOwnerDashboard(dashboard);
         setUser(profile);
