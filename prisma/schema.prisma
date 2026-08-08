@@ -216,6 +216,12 @@ model Invoice {
   @@index([paymentStatus])
 }
 
+model InvoiceSequence {
+  id         String   @id
+  lastNumber Int      @default(0)
+  updatedAt  DateTime @updatedAt
+}
+
 model InvoiceItem {
   id             String  @id @default(uuid())
   invoiceId      String

@@ -23,25 +23,19 @@ It is not yet a mature business platform. The next work must focus on correctnes
 1. Tenant/company boundary is missing.
    Every table currently belongs to one implicit distributor. A real product needs `Company` or `Distributor` ownership on users, warehouses, customers, products, invoices, payments, deliveries, and stock movements.
 
-2. Invoice number generation is not concurrency-safe.
-   `INV-${count + 1}` can collide when two invoices are created at the same time. This needs a database-backed sequence or counter table inside the invoice transaction.
-
-3. Payment creation and invoice status update are not fully atomic.
-   A payment is created first, then invoice status is refreshed. If the second step fails, financial status can be stale. This should be one transaction.
-
-4. List endpoints are unpaginated.
+2. List endpoints are unpaginated.
    Products, customers, invoices, payments, stock movement ledger, users, and reports can become slow and expensive as data grows.
 
-5. Frontend is too large.
+3. Frontend is too large.
    `app/page.tsx` is a single high-risk component. It should be split into feature modules: auth, layout, dashboard, inventory, customers, deliveries, payments, reports, settings.
 
-6. Test coverage is missing.
+4. Test coverage is still thin.
    Business-critical flows need automated tests: auth roles, invoice stock deduction, credit limit override, payment status refresh, delivery reconciliation, product deletion rules, and driver data scoping.
 
-7. Audit logging is partial.
-   Sensitive flows such as login failures, invoice creation, payment creation, stock movement, negative stock approval, and delivery reconciliation should create audit records.
+5. Audit logging is partial.
+   Sensitive flows such as login failures, stock movement, negative stock approval, and delivery reconciliation should create audit records.
 
-8. Demo seed account is unsafe for production.
+6. Demo seed account is unsafe for production.
    Seed data should be explicitly disabled in production or moved to a demo-only environment. Real onboarding should create an owner through a controlled setup command.
 
 ## Target Architecture
@@ -59,10 +53,9 @@ It is not yet a mature business platform. The next work must focus on correctnes
 
 ### Phase A: Correctness
 
-- Replace invoice count-based numbering with database-safe invoice sequence.
-- Make payment creation and invoice status refresh atomic.
-- Add audit logs for invoice, payment, stock, delivery, and failed login events.
-- Add backend tests for the above.
+- Add audit logs for stock, delivery, negative stock approval, and failed login events.
+- Add backend tests for invoice stock deduction, credit limit override, delivery reconciliation, product deletion rules, and driver data scoping.
+- Keep expanding financial tests around payment status edge cases.
 
 ### Phase B: Scale and Boundaries
 

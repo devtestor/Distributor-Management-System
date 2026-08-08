@@ -695,6 +695,10 @@ Current status:
 - Principal engineering audit has been added to define the remaining path to business-grade software.
 - API startup now validates required environment variables and rejects weak JWT secrets.
 - Login throttling has been added for repeated failed attempts.
+- Invoice numbers now use a database-backed sequence instead of count-based generation.
+- Payment creation and invoice payment status refresh now run inside one transaction.
+- Invoice and payment creation now write audit log entries.
+- A backend test script and initial payment service tests have been added.
 - Basic user training notes have been added.
 - External managed database backup scheduling still needs to be enabled in the selected PostgreSQL provider.
 - Structured error monitoring provider is still pending.

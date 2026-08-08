@@ -83,10 +83,8 @@ export class InvoicesService {
     const paymentStatus =
       initialPaymentAmount === 0 ? PaymentStatus.UNPAID : initialPaymentAmount === totalAmount ? PaymentStatus.PAID : PaymentStatus.PARTIAL;
 
-    const warehouseId = dto.warehouseId ?? mainWarehouseId;
-    const invoiceNumber = await this.nextInvoiceNumber();
-
     return this.prisma.$transaction(async (tx) => {
+      const warehouseId = dto.warehouseId ?? mainWarehouseId;
       const warehouse = await tx.warehouse.findUnique({
         where: { id: warehouseId },
         select: { id: true }
@@ -103,6 +101,8 @@ export class InvoicesService {
           tx
         });
       }
+
+      const invoiceNumber = await this.nextInvoiceNumber(tx);
 
       const invoice = await tx.invoice.create({
         data: {
@@ -143,13 +143,35 @@ export class InvoicesService {
         }))
       });
 
+      await tx.auditLog.create({
+        data: {
+          userId: createdById,
+          action: "CREATE",
+          entity: "Invoice",
+          entityId: invoice.id,
+          metadata: {
+            invoiceNumber: invoice.invoiceNumber,
+            customerId: dto.customerId,
+            totalAmount,
+            paymentStatus,
+            itemCount: invoiceItems.length
+          }
+        }
+      });
+
       return invoice;
     });
   }
 
-  private async nextInvoiceNumber() {
-    const count = await this.prisma.invoice.count();
-    return `INV-${String(count + 1).padStart(6, "0")}`;
+  private async nextInvoiceNumber(tx: InvoiceTransaction) {
+    const sequence = await tx.invoiceSequence.upsert({
+      where: { id: "global" },
+      update: { lastNumber: { increment: 1 } },
+      create: { id: "global", lastNumber: 1 },
+      select: { lastNumber: true }
+    });
+
+    return `INV-${String(sequence.lastNumber).padStart(6, "0")}`;
   }
 
   private async assertCreditLimitCanApply(input: {
