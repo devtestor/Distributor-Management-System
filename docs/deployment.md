@@ -62,9 +62,30 @@ The Docker stack runs:
 
 - `app`: Next.js frontend on port `3000`
 - `api`: NestJS API on port `4000`
+- `migrate`: one-shot Prisma migration job
+- `seed`: one-shot seed job for roles, demo owner, starter products, warehouse, customer, and vehicle
 - `postgres`: PostgreSQL on port `5432`
 
 The frontend keeps `NEXT_PUBLIC_API_URL=/api` and proxies API calls to the internal Docker API service through `API_INTERNAL_URL=http://api:4000`.
+
+Docker requirements:
+
+- Docker Engine running
+- Docker Compose v2 plugin available as `docker compose`
+- Current shell user allowed to access the Docker daemon
+
+Useful commands:
+
+```bash
+npm run docker:build
+npm run docker:up
+npm run docker:logs
+npm run docker:down
+```
+
+If `docker compose` is unavailable, install the Compose v2 plugin. If Docker reports permission denied on `/var/run/docker.sock`, add the OS user to the Docker group or run the command from a shell with Docker daemon access.
+
+The seed job is intended for local/demo stacks. For a real distributor production database, run migrations first, create real owner/admin users, and disable or avoid demo credentials.
 
 ## Database Backups
 

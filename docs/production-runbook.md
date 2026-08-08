@@ -39,6 +39,12 @@ WEB_ORIGIN=https://your-production-domain
 NEXT_PUBLIC_API_URL=/api
 ```
 
+For Docker deployments where the Next.js container proxies to a separate API container, also set:
+
+```bash
+API_INTERNAL_URL=http://api:4000
+```
+
 ## Database Backup Policy
 
 - Use managed PostgreSQL automatic backups if using Neon, Render, Railway, DigitalOcean, AWS, Azure, or Google Cloud.
@@ -74,3 +80,25 @@ pg_restore --clean --if-exists --dbname "$DATABASE_URL" backup-file.dump
 - Vercel function logs are the current primary runtime log source.
 - API errors should be investigated from Vercel deployment logs and correlated with user action time.
 - Before full production rollout, connect structured error tracking such as Sentry or Axiom.
+
+## Docker Operations
+
+Start the local production-like stack:
+
+```bash
+npm run docker:up
+```
+
+Follow logs:
+
+```bash
+npm run docker:logs
+```
+
+Stop the stack:
+
+```bash
+npm run docker:down
+```
+
+The stack starts PostgreSQL, runs migrations, runs seed data, starts the Nest API, and starts the Next.js app.

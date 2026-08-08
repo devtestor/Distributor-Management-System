@@ -683,7 +683,7 @@ Current status:
 
 - Vercel production deployment is configured for frontend and API.
 - Dockerfile has been added for container deployment.
-- Docker Compose includes app and PostgreSQL services for local production-like runs.
+- Docker Compose includes app, API, migration, seed, and PostgreSQL services for local production-like runs.
 - Production migration script `prisma:deploy` has been added.
 - Deployment documentation has been expanded with Vercel, Docker, backup, logging, and monitoring notes.
 - Production runbook has been added.

@@ -3,6 +3,8 @@ services:
     build:
       context: .
       dockerfile: Dockerfile
+      args:
+        API_INTERNAL_URL: http://api:4000
     container_name: human-concept-erp-app
     depends_on:
       api:
@@ -17,11 +19,13 @@ services:
     build:
       context: .
       dockerfile: Dockerfile
+      args:
+        API_INTERNAL_URL: http://api:4000
     container_name: human-concept-erp-api
     command: npm run api:start
     depends_on:
-      postgres:
-        condition: service_healthy
+      seed:
+        condition: service_completed_successfully
     environment:
       DATABASE_URL: postgresql://postgres:postgres@postgres:5432/human_concept_erp?schema=public
       API_PORT: 4000
@@ -35,6 +39,36 @@ services:
       interval: 10s
       timeout: 5s
       retries: 5
+
+  migrate:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: builder
+      args:
+        API_INTERNAL_URL: http://api:4000
+    container_name: human-concept-erp-migrate
+    command: npm run prisma:deploy
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      DATABASE_URL: postgresql://postgres:postgres@postgres:5432/human_concept_erp?schema=public
+
+  seed:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: builder
+      args:
+        API_INTERNAL_URL: http://api:4000
+    container_name: human-concept-erp-seed
+    command: npm run prisma:seed
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+    environment:
+      DATABASE_URL: postgresql://postgres:postgres@postgres:5432/human_concept_erp?schema=public
 
   postgres:
     image: postgres:16-alpine

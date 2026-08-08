@@ -90,6 +90,9 @@ npm run typecheck
 npm run build
 npm run api:build
 npm run prisma:generate
+npm run prisma:deploy
+npm run docker:up
+npm run docker:down
 ```
 
 ## Documentation
