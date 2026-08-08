@@ -13,7 +13,7 @@
 Copy `.env.example` to `.env` and set:
 
 - `DATABASE_URL`
-- `API_PORT`
+- `API_PORT` for local development, or `PORT` on Render
 - `JWT_SECRET`
 - `JWT_EXPIRES_IN`
 - `WEB_ORIGIN`
@@ -105,7 +105,8 @@ Authenticated:
 - The dashboard includes a login panel using `POST /api/auth/login`.
 - After login, it calls `GET /api/dashboard/owner` with the bearer token.
 - If the API or database is not running, the dashboard stays usable in demo mode with sample data.
-- Set `NEXT_PUBLIC_API_URL=/api` when the frontend and API run in the same Vercel app.
+- Set `NEXT_PUBLIC_API_URL=/api` when the frontend and API share the same origin.
+- Set `NEXT_PUBLIC_API_URL=https://your-api-service.onrender.com` when the frontend calls a separate Render API service. The frontend appends `/api` automatically when the value is a plain service origin.
 
 ## Remaining Backend Work
 

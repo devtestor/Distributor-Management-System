@@ -324,7 +324,17 @@ export type ApiEmptiesReport = {
   }>;
 };
 
-const apiBaseUrl = process.env.NEXT_PUBLIC_API_URL ?? "/api";
+function resolveApiBaseUrl() {
+  const rawBaseUrl = process.env.NEXT_PUBLIC_API_URL?.replace(/\/$/, "");
+
+  if (!rawBaseUrl) return "/api";
+  if (rawBaseUrl.endsWith("/api")) return rawBaseUrl;
+  if (rawBaseUrl.startsWith("http://") || rawBaseUrl.startsWith("https://")) return `${rawBaseUrl}/api`;
+
+  return rawBaseUrl;
+}
+
+const apiBaseUrl = resolveApiBaseUrl();
 
 async function request<T>(path: string, options: RequestInit = {}) {
   const response = await fetch(`${apiBaseUrl}${path}`, {

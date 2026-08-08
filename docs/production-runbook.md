@@ -20,11 +20,11 @@
    ```
 
 2. Push to `origin/main`.
-3. Deploy from Vercel or run `vercel deploy --prod`.
+3. Deploy through Render Blueprint sync or Render auto-deploy.
 4. Smoke-test production:
 
    ```bash
-   curl https://your-domain/api/health
+   curl https://your-api-service.onrender.com/api/health
    ```
 
 5. Login as owner and verify Dashboard, Inventory, Deliveries, Reports, and Settings.
@@ -36,7 +36,7 @@ DATABASE_URL=postgresql://...
 JWT_SECRET=long-random-secret
 JWT_EXPIRES_IN=1h
 WEB_ORIGIN=https://your-production-domain
-NEXT_PUBLIC_API_URL=/api
+NEXT_PUBLIC_API_URL=https://your-api-service.onrender.com
 ```
 
 For Docker deployments where the Next.js container proxies to a separate API container, also set:
@@ -77,8 +77,8 @@ pg_restore --clean --if-exists --dbname "$DATABASE_URL" backup-file.dump
 
 ## Error Logging
 
-- Vercel function logs are the current primary runtime log source.
-- API errors should be investigated from Vercel deployment logs and correlated with user action time.
+- Render service logs are the current primary runtime log source.
+- API errors should be investigated from the Render API service logs and correlated with user action time.
 - Before full production rollout, connect structured error tracking such as Sentry or Axiom.
 
 ## Docker Operations

@@ -2,39 +2,63 @@
 
 ## Current Production Target
 
-The current production deployment uses one Vercel app:
+The current production target is Render with two web services:
 
-- Next.js frontend
-- NestJS API through `api/[...path].js`
-- Neon PostgreSQL through `DATABASE_URL`
+- `distributor-management-system-web`: Next.js frontend
+- `distributor-management-system-api`: NestJS API
+- Neon or Render PostgreSQL through `DATABASE_URL`
 
-Use the stable Vercel URL until the custom domain DNS is pointed at Vercel.
+The root `render.yaml` defines both services as a Render Blueprint.
 
-## Vercel App
+## Render Blueprint
 
-This repository is ready for a Vercel frontend deployment from GitHub.
+Recommended setup:
 
-Recommended Vercel settings:
+1. Select a Render workspace:
 
-- Framework preset: `Next.js`
-- Build command: `npm run build`
-- Install command: `npm install`
-- Output directory: `.next`
+   ```bash
+   render workspace set
+   ```
 
-Required Vercel environment variables:
+2. Validate the Blueprint:
+
+   ```bash
+   render blueprints validate ./render.yaml
+   ```
+
+3. Create or sync the Blueprint from the Render dashboard.
+
+The Blueprint creates:
+
+- API service build command: `npm run render:api:build`
+- API service start command: `npm run render:api:start`
+- API health check: `/api/health`
+- Web service build command: `npm run render:web:build`
+- Web service start command: `npm run render:web:start`
+- Web health check: `/`
+
+Required API environment variables:
 
 ```bash
-NEXT_PUBLIC_API_URL=/api
 DATABASE_URL=postgresql://...
-JWT_SECRET=replace-with-a-long-random-secret
 JWT_EXPIRES_IN=1h
-WEB_ORIGIN=https://your-vercel-app.vercel.app
 ```
 
-Run database setup against the production database before using live accounts:
+`render.yaml` generates `JWT_SECRET` if the service does not already have one. `DATABASE_URL` is marked `sync: false`; add the Neon or Render PostgreSQL connection string in the Render dashboard when creating the Blueprint.
+
+The frontend receives `NEXT_PUBLIC_API_URL` from the API service's Render URL. The API receives `WEB_ORIGIN` from the web service's Render URL.
+
+The API build command runs:
 
 ```bash
+npm run prisma:generate
 npm run prisma:deploy
+npm run api:build
+```
+
+Seed data is not run automatically in Render. For demo or first admin setup, run it manually against the production database only when appropriate:
+
+```bash
 npm run prisma:seed
 ```
 
@@ -110,11 +134,11 @@ pg_restore --clean --if-exists --dbname "$DATABASE_URL" backup-file.dump
 
 ## Logging and Monitoring
 
-- Use Vercel deployment/function logs for runtime API errors.
+- Use Render service logs for runtime API and frontend errors.
 - Use `/api/health` for health checks.
 - Connect Sentry, Axiom, or a similar service before onboarding a real distributor.
 - Review audit logs after sensitive account, product, price, and stock actions.
 
 ## GitHub Flow
 
-Each completed phase should be committed and pushed to `origin/main`. Vercel can then deploy the latest pushed frontend automatically through its GitHub integration.
+Each completed phase should be committed and pushed to `origin/main`. Render can then deploy the latest pushed API and frontend automatically through its GitHub integration.
