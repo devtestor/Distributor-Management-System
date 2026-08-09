@@ -20,8 +20,8 @@ It is not yet a mature business platform. The next work must focus on correctnes
 
 ## Critical Business Risks
 
-1. Frontend is too large.
-   `app/page.tsx` is a single high-risk component. It should be split into feature modules: auth, layout, dashboard, inventory, customers, deliveries, payments, reports, settings.
+1. Frontend main page is still too large.
+   Shared dashboard helpers have been extracted, but `app/page.tsx` still owns too much state, workflow logic, and JSX. It should continue moving into feature modules: auth, layout, dashboard, inventory, customers, deliveries, payments, reports, settings.
 
 2. Test coverage is still thin.
    Business-critical flows need automated tests: auth roles, invoice stock deduction, credit limit override, payment status refresh, delivery reconciliation, product deletion rules, and driver data scoping.
@@ -59,7 +59,7 @@ It is not yet a mature business platform. The next work must focus on correctnes
 
 ### Phase C: Maintainability
 
-- Split `app/page.tsx` into feature components and hooks.
+- Continue splitting `app/page.tsx` into feature components and hooks.
 - Move API client by feature domain.
 - Add form-level validation helpers.
 - Add shared role permission utilities used by both frontend and backend.

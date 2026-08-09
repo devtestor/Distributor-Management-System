@@ -704,6 +704,8 @@ Current status:
 - Existing production/demo records are backfilled into the default BRALIRWA distributor company.
 - Authenticated API reads/writes now carry `companyId` from the logged-in user.
 - Product SKU, invoice number, and vehicle plate uniqueness are now scoped per company.
+- Frontend dashboard helper logic has been extracted from the main page module.
+- Backend tests now cover pagination defaults/limits and delivery trip company scoping.
 - Basic user training notes have been added.
 - External managed database backup scheduling still needs to be enabled in the selected PostgreSQL provider.
 - Structured error monitoring provider is still pending.
