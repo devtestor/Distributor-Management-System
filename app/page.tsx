@@ -1,18 +1,14 @@
 "use client";
 
 import {
-  AlertTriangle,
   Banknote,
   Boxes,
-  CalendarDays,
   ClipboardCheck,
   CreditCard,
-  Languages,
   PackagePlus,
   ReceiptText,
   RotateCcw,
   Route,
-  Search,
   Settings,
   ShieldCheck,
   Trash2,
@@ -21,6 +17,17 @@ import {
   X
 } from "lucide-react";
 import { FormEvent, useCallback, useEffect, useMemo, useState } from "react";
+import { DashboardOverview } from "@/components/dashboard/overview";
+import {
+  AuthBand,
+  DashboardSidebar,
+  DashboardTopbar,
+  KpiGrid,
+  LoginRequiredPanel,
+  PageHeading,
+  StatusBanners,
+  SyncBanner
+} from "@/components/dashboard/shell";
 import {
   ApiAuditLog,
   ApiCustomer,
@@ -80,7 +87,6 @@ import {
   emptyInvoiceItem,
   emptyProductForm,
   formatToday,
-  getProductStatus,
   MAIN_WAREHOUSE_ID,
   mapLiveDelivery,
   mapLivePayment,
@@ -987,284 +993,129 @@ export default function Home() {
 
   return (
     <main className="app-shell">
-      <aside className="sidebar">
-        <div className="brand">
-          <div className="brand-mark">DC</div>
-          <div>
-            <h1>{t("appName")}</h1>
-            <p>{t("business")}</p>
-          </div>
-        </div>
-
-        <nav className="nav" aria-label="Primary">
-          {navItems.map((item) => (
-            <button
-              className={`nav-button ${activeSection === item.key ? "active" : ""}`}
-              key={item.key}
-              onClick={() => setActiveSection(item.key)}
-              type="button"
-            >
-              <item.icon size={18} aria-hidden="true" />
-              <span>{item.label}</span>
-            </button>
-          ))}
-        </nav>
-
-        <p className="sidebar-note">{t("systemScope")}</p>
-      </aside>
+      <DashboardSidebar
+        activeSection={activeSection}
+        appName={t("appName")}
+        business={t("business")}
+        navItems={navItems}
+        systemScope={t("systemScope")}
+        onSectionChange={setActiveSection}
+      />
 
       <section className="main">
-        <header className="topbar">
-          <label className="search">
-            <Search size={18} aria-hidden="true" />
-            <input aria-label="Search" placeholder={t("searchPlaceholder")} />
-          </label>
-
-          <div aria-label={t("language")} className="language-switcher" title={t("language")}>
-            {locales.map((item) => (
-              <button
-                className={locale === item.code ? "active" : ""}
-                key={item.code}
-                onClick={() => setLocale(item.code)}
-                title={item.label}
-                type="button"
-              >
-                {item.short}
-              </button>
-            ))}
-          </div>
-        </header>
+        <DashboardTopbar
+          languageLabel={t("language")}
+          locale={locale}
+          locales={locales}
+          searchPlaceholder={t("searchPlaceholder")}
+          onLocaleChange={setLocale}
+        />
 
         <div className="content">
-          <section className="auth-band" aria-label="Authentication">
-            <div>
-              <span className={`badge ${apiStatus === "connected" ? "good" : "warn"}`}>
-                {apiStatus === "connected" ? t("apiConnected") : t("demoMode")}
-              </span>
-              <p>
-                {isLiveDataLoading
-                  ? t("loadingData")
-                  : apiStatus === "connected" && user
-                    ? `${t("signedInAs")} ${user.fullName}. ${t("liveDataNote")}`
-                    : apiStatus === "connected"
-                      ? t("signInLiveApi")
-                      : t("fallbackDataNote")}
-              </p>
-            </div>
+          <AuthBand
+            apiStatus={apiStatus}
+            authError={authError}
+            email={email}
+            isLiveDataLoading={isLiveDataLoading}
+            isLoggingIn={isLoggingIn}
+            labels={{
+              apiConnected: t("apiConnected"),
+              demoMode: t("demoMode"),
+              email: t("email"),
+              fallbackDataNote: t("fallbackDataNote"),
+              liveDataNote: t("liveDataNote"),
+              loadingData: t("loadingData"),
+              login: t("login"),
+              logout: t("logout"),
+              password: t("password"),
+              seedCredentials: t("seedCredentials"),
+              signInLiveApi: t("signInLiveApi"),
+              signedInAs: t("signedInAs")
+            }}
+            password={password}
+            user={user}
+            onEmailChange={setEmail}
+            onLogin={handleLogin}
+            onLogout={handleLogout}
+            onPasswordChange={setPassword}
+          />
 
-            {user ? (
-              <button className="primary-button" onClick={handleLogout} type="button">
-                {t("logout")}
-              </button>
-            ) : (
-              <form className="login-form" onSubmit={handleLogin}>
-                <label>
-                  <span>{t("email")}</span>
-                  <input value={email} onChange={(event) => setEmail(event.target.value)} type="email" />
-                </label>
-                <label>
-                  <span>{t("password")}</span>
-                  <input value={password} onChange={(event) => setPassword(event.target.value)} type="password" />
-                </label>
-                <button className="primary-button" disabled={isLoggingIn} type="submit">
-                  {isLoggingIn ? "..." : t("login")}
-                </button>
-                <small>{authError ?? t("seedCredentials")}</small>
-              </form>
-            )}
-          </section>
-
-          {actionNotice ? <section className="status-banner success">{actionNotice}</section> : null}
-          {actionError ? <section className="status-banner danger">{actionError}</section> : null}
+          <StatusBanners actionError={actionError} actionNotice={actionNotice} />
 
           {isAuthenticated ? (
-            <section className={`sync-banner ${isOnline ? "online" : "offline"}`}>
-              <div>
-                <strong>{isOnline ? t("online") : t("offline")}</strong>
-                <span>
-                  {offlineDrafts.length > 0
-                    ? `${offlineDrafts.length} ${t("pendingDrafts")}`
-                    : t("noPendingDrafts")}
-                </span>
-              </div>
-              <button
-                className="ghost-button"
-                disabled={!isOnline || offlineDrafts.length === 0 || isSyncingDrafts}
-                onClick={() => void syncOfflineDrafts()}
-                type="button"
-              >
-                {isSyncingDrafts ? t("syncing") : t("syncNow")}
-              </button>
-            </section>
+            <SyncBanner
+              disabled={!isOnline || offlineDrafts.length === 0 || isSyncingDrafts}
+              isOnline={isOnline}
+              isSyncingDrafts={isSyncingDrafts}
+              labels={{
+                noPendingDrafts: t("noPendingDrafts"),
+                offline: t("offline"),
+                online: t("online"),
+                pendingDrafts: t("pendingDrafts"),
+                syncNow: t("syncNow"),
+                syncing: t("syncing")
+              }}
+              offlineDraftCount={offlineDrafts.length}
+              onSync={() => void syncOfflineDrafts()}
+            />
           ) : null}
 
           {!isAuthenticated ? (
-            <section className="panel">
-              <div className="panel-header">
-                <div>
-                  <h3>{t("login")}</h3>
-                  <span>{t("signInLiveApi")}</span>
-                </div>
-                <ShieldCheck size={18} color="var(--brand)" aria-hidden="true" />
-              </div>
-              <div className="panel-body">
-                <p className="table-state">{t("loginRequired")}</p>
-              </div>
-            </section>
+            <LoginRequiredPanel
+              login={t("login")}
+              loginRequired={t("loginRequired")}
+              signInLiveApi={t("signInLiveApi")}
+            />
           ) : (
             <>
-              <div className="page-heading">
-                <div>
-                  <h2>{activeSection === "dashboard" ? t("ownerCommand") : activeNavItem?.label}</h2>
-                  <p>
-                    {activeSection === "dashboard" ? t("overview") : t("systemScope")}
-                  </p>
-                </div>
-                <div className="date-pill">
-                  <CalendarDays size={17} aria-hidden="true" />
-                  <span>
-                    {t("today")}: {formatToday(locale)}
-                  </span>
-                </div>
-              </div>
+              <PageHeading
+                activeSection={activeSection}
+                dateLabel={t("today")}
+                formattedDate={formatToday(locale)}
+                ownerTitle={t("ownerCommand")}
+                overview={t("overview")}
+                sectionLabel={activeNavItem?.label}
+                systemScope={t("systemScope")}
+              />
 
               {activeSection === "dashboard" || activeSection === "reports" ? (
-                <section className="kpi-grid" aria-label="Business metrics">
-                  {kpis.map((kpi) => (
-                    <article className="kpi-card" key={kpi.label}>
-                      <div className="icon">
-                        <kpi.icon size={19} aria-hidden="true" />
-                      </div>
-                      <div>
-                        <p>{kpi.label}</p>
-                        <strong>{kpi.value}</strong>
-                      </div>
-                    </article>
-                  ))}
-                </section>
+                <KpiGrid kpis={kpis} />
               ) : null}
 
               {activeSection === "dashboard" || activeSection === "inventory" ? (
-              <section className="section-grid">
-                <article className="panel">
-                  <div className="panel-header">
-                    <div>
-                      <h3>{t("inventory")}</h3>
-                      <span>
-                        {metrics.lowStock} {t("lowStock").toLowerCase()}
-                      </span>
-                    </div>
-                    <span className="badge warn">{t("reorderNow")}</span>
-                  </div>
-                  <div className="table-wrap">
-                    <table>
-                      <thead>
-                        <tr>
-                          <th>{t("product")}</th>
-                          <th>{t("package")}</th>
-                          <th>{t("stock")}</th>
-                          <th>{t("reorder")}</th>
-                          <th>{t("margin")}</th>
-                          <th>{t("empties")}</th>
-                          <th>{t("status")}</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {displayedProducts.map((product) => {
-                          const status = getProductStatus(product);
-                          return (
-                            <tr key={product.id}>
-                              <td>
-                                <strong>{product.name}</strong>
-                                <small>{product.sku}</small>
-                              </td>
-                              <td>{product.unitSize}</td>
-                              <td>{product.stockUnits.toLocaleString()}</td>
-                              <td>{product.reorderLevel.toLocaleString()}</td>
-                              <td>{money(product.unitPrice - product.unitCost)}</td>
-                              <td>{product.emptiesOwed.toLocaleString()}</td>
-                              <td>
-                                <span className={`badge ${status}`}>
-                                  {status === "good" ? t("healthy") : status === "warn" ? t("watch") : t("reorderNow")}
-                                </span>
-                              </td>
-                            </tr>
-                          );
-                        })}
-                        {displayedProducts.length === 0 ? (
-                          <tr>
-                            <td className="table-state" colSpan={7}>
-                              {isLiveDataLoading ? t("loadingData") : t("noRecords")}
-                            </td>
-                          </tr>
-                        ) : null}
-                      </tbody>
-                    </table>
-                  </div>
-                </article>
-
-                <aside className="side-stack">
-                  <article className="panel">
-                    <div className="panel-header">
-                      <h3>{t("alerts")}</h3>
-                      <AlertTriangle size={18} color="var(--amber)" aria-hidden="true" />
-                    </div>
-                    <ul className="alert-list">
-                      <li>
-                        <span className="alert-icon">
-                          <Boxes size={18} aria-hidden="true" />
-                        </span>
-                        <div>
-                          <strong>{metrics.lowStock}</strong>
-                          <span>{t("alertLowStock")}</span>
-                        </div>
-                      </li>
-                      <li>
-                        <span className="alert-icon">
-                          <CreditCard size={18} aria-hidden="true" />
-                        </span>
-                        <div>
-                          <strong>{criticalCreditCustomers.length}</strong>
-                          <span>{t("alertCredit")}</span>
-                        </div>
-                      </li>
-                      <li>
-                        <span className="alert-icon">
-                          <RotateCcw size={18} aria-hidden="true" />
-                        </span>
-                        <div>
-                          <strong>{highEmptiesCustomers.length}</strong>
-                          <span>{t("alertEmpties")}</span>
-                        </div>
-                      </li>
-                    </ul>
-                  </article>
-
-                  <article className="panel">
-                    <div className="panel-header">
-                      <h3>{t("quickActions")}</h3>
-                      <Languages size={18} color="var(--brand)" aria-hidden="true" />
-                    </div>
-                    <div className="action-list">
-                      {quickActions.map((action) => (
-                        <button
-                          className="action-card"
-                          disabled={!canUseLiveActions}
-                          key={action.key}
-                          onClick={() => openActionModal(action.key)}
-                          type="button"
-                        >
-                          <action.icon size={19} aria-hidden="true" />
-                          <span>
-                            <strong>{action.label}</strong>
-                            <span>{canUseLiveActions ? t("liveEntry") : t("loginRequired")}</span>
-                          </span>
-                        </button>
-                      ))}
-                    </div>
-                  </article>
-                </aside>
-              </section>
+                <DashboardOverview
+                  canUseLiveActions={canUseLiveActions}
+                  criticalCreditCount={criticalCreditCustomers.length}
+                  highEmptiesCount={highEmptiesCustomers.length}
+                  isLiveDataLoading={isLiveDataLoading}
+                  labels={{
+                    alertCredit: t("alertCredit"),
+                    alertEmpties: t("alertEmpties"),
+                    alertLowStock: t("alertLowStock"),
+                    alerts: t("alerts"),
+                    empties: t("empties"),
+                    healthy: t("healthy"),
+                    inventory: t("inventory"),
+                    liveEntry: t("liveEntry"),
+                    loadingData: t("loadingData"),
+                    loginRequired: t("loginRequired"),
+                    lowStock: t("lowStock"),
+                    margin: t("margin"),
+                    noRecords: t("noRecords"),
+                    package: t("package"),
+                    product: t("product"),
+                    quickActions: t("quickActions"),
+                    reorder: t("reorder"),
+                    reorderNow: t("reorderNow"),
+                    status: t("status"),
+                    stock: t("stock"),
+                    watch: t("watch")
+                  }}
+                  lowStockCount={metrics.lowStock}
+                  products={displayedProducts}
+                  quickActions={quickActions}
+                  onOpenAction={openActionModal}
+                />
               ) : null}
 
               {activeSection === "inventory" && isAccountAdmin ? (
