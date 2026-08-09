@@ -16,7 +16,7 @@ import {
   Users,
   X
 } from "lucide-react";
-import { FormEvent, useCallback, useEffect, useMemo, useState } from "react";
+import { FocusEvent, FormEvent, useCallback, useEffect, useMemo, useState } from "react";
 import { DashboardOverview } from "@/components/dashboard/overview";
 import {
   AuthBand,
@@ -44,6 +44,7 @@ import {
   ApiVehicle,
   changeMyPassword,
   createDeliveryTrip,
+  createCustomer,
   createProduct,
   createInvoice,
   createUser,
@@ -174,6 +175,13 @@ export default function Home() {
     route: "",
     allowNegativeStock: false,
     items: [] as DeliveryLoadFormItem[]
+  });
+  const [customerForm, setCustomerForm] = useState({
+    name: "",
+    phone: "",
+    route: "",
+    location: "",
+    creditLimit: 0
   });
   const [accountForm, setAccountForm] = useState({
     fullName: "",
@@ -440,6 +448,10 @@ export default function Home() {
   const displayedDeliveries = liveDeliveries.length > 0 ? liveDeliveries : deliveries;
   const displayedPayments = livePayments.length > 0 ? livePayments : payments;
   const canUseLiveActions = Boolean(accessToken && apiStatus === "connected");
+  const canCreateCustomers = Boolean(user?.role && ["OWNER", "ADMIN", "ACCOUNTANT", "SALESPERSON"].includes(user.role));
+  const canCreateDeliveries = Boolean(user?.role && ["OWNER", "ADMIN", "WAREHOUSE_MANAGER"].includes(user.role));
+  const canReconcileDeliveries = Boolean(user?.role && ["OWNER", "ADMIN", "WAREHOUSE_MANAGER", "DRIVER"].includes(user.role));
+  const canRecordPayments = Boolean(user?.role && ["OWNER", "ADMIN", "ACCOUNTANT", "SALESPERSON"].includes(user.role));
   const assignableRoles = apiRoles.filter((role) => user?.role === "OWNER" || role.name !== "OWNER");
   const openTrips = apiTrips.filter((trip) => trip.status !== "CLOSED");
   const driverUsers = apiUsers.filter((account) => account.role === "DRIVER" && account.isActive !== false);
@@ -500,7 +512,8 @@ export default function Home() {
     { key: "invoice" as const, label: t("createInvoice"), icon: ReceiptText, roles: ["OWNER", "ADMIN", "SALESPERSON"] as NavRole[] },
     { key: "delivery" as const, label: t("createDeliveryTrip"), icon: Truck, roles: ["OWNER", "ADMIN"] as NavRole[] },
     { key: "reconcile" as const, label: t("reconcileTruck"), icon: ClipboardCheck, roles: ["OWNER", "ADMIN", "WAREHOUSE_MANAGER", "DRIVER"] as NavRole[] },
-    { key: "payment" as const, label: t("recordPayment"), icon: Banknote, roles: ["OWNER", "ADMIN", "SALESPERSON", "ACCOUNTANT"] as NavRole[] }
+    { key: "payment" as const, label: t("recordPayment"), icon: Banknote, roles: ["OWNER", "ADMIN", "SALESPERSON", "ACCOUNTANT"] as NavRole[] },
+    { key: "customer" as const, label: t("createCustomer"), icon: Users, roles: ["OWNER", "ADMIN", "SALESPERSON", "ACCOUNTANT"] as NavRole[] }
   ].filter((item) => !user?.role || item.roles.includes(user.role as NavRole));
 
   useEffect(() => {
@@ -599,6 +612,10 @@ export default function Home() {
     setActionError(null);
   }
 
+  function selectNumberInput(event: FocusEvent<HTMLInputElement>) {
+    event.currentTarget.select();
+  }
+
   function openActionModal(action: Exclude<ActionType, null>) {
     if (!canUseLiveActions) {
       setActionNotice(t("signInLiveApi"));
@@ -638,6 +655,16 @@ export default function Home() {
       });
     }
 
+    if (action === "customer") {
+      setCustomerForm({
+        name: "",
+        phone: "",
+        route: "",
+        location: "",
+        creditLimit: 0
+      });
+    }
+
     if (action === "delivery") {
       setDeliveryForm({
         vehicleId: apiVehicles[0]?.id ?? "",
@@ -664,6 +691,7 @@ export default function Home() {
 
     setIsActionSubmitting(true);
     setActionError(null);
+    setActionNotice(null);
 
     try {
       await task();
@@ -671,6 +699,7 @@ export default function Home() {
       setActionNotice(successMessage);
       setActiveAction(null);
     } catch (error) {
+      setActionNotice(null);
       setActionError(error instanceof Error ? error.message : t("genericActionFailed"));
     } finally {
       setIsActionSubmitting(false);
@@ -750,6 +779,25 @@ export default function Home() {
         await recordPayment(accessToken, payload);
       },
       t("recordPayment")
+    );
+  }
+
+  async function submitCustomer(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (!accessToken) return;
+    const payload = {
+      name: customerForm.name,
+      phone: customerForm.phone || undefined,
+      route: customerForm.route || undefined,
+      location: customerForm.location || undefined,
+      creditLimit: customerForm.creditLimit
+    };
+
+    await runAction(
+      async () => {
+        await createCustomer(accessToken, payload);
+      },
+      t("customerCreated")
     );
   }
 
@@ -1120,13 +1168,26 @@ export default function Home() {
 
               {activeSection === "inventory" && isAccountAdmin ? (
                 <article className="panel">
-                  <div className="panel-header">
-                    <div>
-                      <h3>{t("productManagement")}</h3>
-                      <span>{t("productSetupNote")}</span>
-                    </div>
-                    <Boxes size={18} color="var(--brand)" aria-hidden="true" />
-                  </div>
+	                  <div className="panel-header">
+	                    <div>
+	                      <h3>{t("productManagement")}</h3>
+	                      <span>{t("productSetupNote")}</span>
+	                    </div>
+	                    <div className="panel-actions">
+	                      <button className="ghost-button" disabled={!canUseLiveActions} onClick={startCreateProduct} type="button">
+	                        {t("createProduct")}
+	                      </button>
+	                      <button
+	                        className="ghost-button"
+	                        disabled={!canUseLiveActions}
+	                        onClick={() => openActionModal("stock")}
+	                        type="button"
+	                      >
+	                        {t("receiveStock")}
+	                      </button>
+	                      <Boxes size={18} color="var(--brand)" aria-hidden="true" />
+	                    </div>
+	                  </div>
                   <div className="panel-body">
                     <form className="entry-form tight-form" onSubmit={submitProductForm}>
                       <div className="form-grid">
@@ -1211,9 +1272,10 @@ export default function Home() {
                         <label>
                           <span>{t("unitCost")}</span>
                           <input
-                            min={0}
-                            required
-                            type="number"
+	                            min={0}
+	                            onFocus={selectNumberInput}
+	                            required
+	                            type="number"
                             value={productForm.unitCost}
                             onChange={(event) =>
                               setProductForm((current) => ({ ...current, unitCost: Number(event.target.value) || 0 }))
@@ -1223,9 +1285,10 @@ export default function Home() {
                         <label>
                           <span>{t("unitPrice")}</span>
                           <input
-                            min={0}
-                            required
-                            type="number"
+	                            min={0}
+	                            onFocus={selectNumberInput}
+	                            required
+	                            type="number"
                             value={productForm.unitPrice}
                             onChange={(event) =>
                               setProductForm((current) => ({ ...current, unitPrice: Number(event.target.value) || 0 }))
@@ -1237,9 +1300,10 @@ export default function Home() {
                         <label>
                           <span>{t("reorder")}</span>
                           <input
-                            min={0}
-                            required
-                            type="number"
+	                            min={0}
+	                            onFocus={selectNumberInput}
+	                            required
+	                            type="number"
                             value={productForm.reorderLevel}
                             onChange={(event) =>
                               setProductForm((current) => ({ ...current, reorderLevel: Number(event.target.value) || 0 }))
@@ -1394,11 +1458,23 @@ export default function Home() {
               {activeSection === "dashboard" || activeSection === "customers" || activeSection === "deliveries" ? (
               <section className="two-column">
                 {activeSection === "dashboard" || activeSection === "customers" ? (
-                <article className="panel">
-                  <div className="panel-header">
-                    <h3>{t("customers")}</h3>
-                    <Users size={18} color="var(--brand)" aria-hidden="true" />
-                  </div>
+	                <article className="panel">
+	                  <div className="panel-header">
+	                    <h3>{t("customers")}</h3>
+	                    <div className="panel-actions">
+	                      {canCreateCustomers ? (
+	                        <button
+	                          className="ghost-button"
+	                          disabled={!canUseLiveActions}
+	                          onClick={() => openActionModal("customer")}
+	                          type="button"
+	                        >
+	                          {t("createCustomer")}
+	                        </button>
+	                      ) : null}
+	                      <Users size={18} color="var(--brand)" aria-hidden="true" />
+	                    </div>
+	                  </div>
                   <div className="table-wrap">
                     <table>
                   <thead>
@@ -1437,11 +1513,33 @@ export default function Home() {
                 ) : null}
 
                 {activeSection === "dashboard" || activeSection === "deliveries" ? (
-                <article className="panel">
-                  <div className="panel-header">
-                    <h3>{t("deliveries")}</h3>
-                    <Route size={18} color="var(--brand)" aria-hidden="true" />
-                  </div>
+	                <article className="panel">
+	                  <div className="panel-header">
+	                    <h3>{t("deliveries")}</h3>
+	                    <div className="panel-actions">
+	                      {canCreateDeliveries ? (
+	                        <button
+	                          className="ghost-button"
+	                          disabled={!canUseLiveActions}
+	                          onClick={() => openActionModal("delivery")}
+	                          type="button"
+	                        >
+	                          {t("createDeliveryTrip")}
+	                        </button>
+	                      ) : null}
+	                      {canReconcileDeliveries ? (
+	                        <button
+	                          className="ghost-button"
+	                          disabled={!canUseLiveActions}
+	                          onClick={() => openActionModal("reconcile")}
+	                          type="button"
+	                        >
+	                          {t("reconcileTruck")}
+	                        </button>
+	                      ) : null}
+	                      <Route size={18} color="var(--brand)" aria-hidden="true" />
+	                    </div>
+	                  </div>
                   <div className="table-wrap">
                     <table>
                   <thead>
@@ -1485,10 +1583,22 @@ export default function Home() {
 
               {activeSection === "dashboard" || activeSection === "payments" ? (
               <article className="panel">
-                <div className="panel-header">
-                  <h3>{t("payments")}</h3>
-                  <ShieldCheck size={18} color="var(--brand)" aria-hidden="true" />
-                </div>
+	                <div className="panel-header">
+	                  <h3>{t("payments")}</h3>
+	                  <div className="panel-actions">
+	                    {canRecordPayments ? (
+	                      <button
+	                        className="ghost-button"
+	                        disabled={!canUseLiveActions}
+	                        onClick={() => openActionModal("payment")}
+	                        type="button"
+	                      >
+	                        {t("recordPayment")}
+	                      </button>
+	                    ) : null}
+	                    <ShieldCheck size={18} color="var(--brand)" aria-hidden="true" />
+	                  </div>
+	                </div>
                 <div className="table-wrap">
                   <table>
                 <thead>
@@ -2030,7 +2140,9 @@ export default function Home() {
                       ? t("createDeliveryTrip")
                       : activeAction === "reconcile"
                         ? t("reconcileTruck")
-                        : t("recordPayment")}
+                        : activeAction === "customer"
+                          ? t("createCustomer")
+                          : t("recordPayment")}
               </h3>
               <button className="icon-button" onClick={closeActionModal} type="button">
                 <X size={18} aria-hidden="true" />
@@ -2057,8 +2169,9 @@ export default function Home() {
                 <label>
                   <span>Quantity</span>
                   <input
-                    min={1}
-                    type="number"
+	                    min={1}
+	                    onFocus={selectNumberInput}
+	                    type="number"
                     value={stockForm.quantity}
                     onChange={(event) =>
                       setStockForm((current) => ({ ...current, quantity: Number(event.target.value) || 0 }))
@@ -2084,8 +2197,8 @@ export default function Home() {
               </form>
             ) : null}
 
-            {activeAction === "invoice" ? (
-              <form className="entry-form" onSubmit={submitInvoice}>
+	            {activeAction === "invoice" ? (
+	              <form className="entry-form" onSubmit={submitInvoice}>
                 <label>
                   <span>{t("customer")}</span>
                   <select
@@ -2141,8 +2254,9 @@ export default function Home() {
                       <label>
                         <span>Quantity</span>
                         <input
-                          min={1}
-                          type="number"
+	                          min={1}
+	                          onFocus={selectNumberInput}
+	                          type="number"
                           value={item.quantity}
                           onChange={(event) =>
                             setInvoiceForm((current) => ({
@@ -2157,8 +2271,9 @@ export default function Home() {
                       <label>
                         <span>Discount</span>
                         <input
-                          min={0}
-                          type="number"
+	                          min={0}
+	                          onFocus={selectNumberInput}
+	                          type="number"
                           value={item.discountAmount}
                           onChange={(event) =>
                             setInvoiceForm((current) => ({
@@ -2210,8 +2325,9 @@ export default function Home() {
                   <label>
                     <span>Initial payment amount</span>
                     <input
-                      min={0}
-                      type="number"
+	                      min={0}
+	                      onFocus={selectNumberInput}
+	                      type="number"
                       value={invoiceForm.initialPaymentAmount}
                       onChange={(event) =>
                         setInvoiceForm((current) => ({
@@ -2240,11 +2356,69 @@ export default function Home() {
                     {isActionSubmitting ? "Saving..." : "Create invoice"}
                   </button>
                 </div>
-              </form>
-            ) : null}
+	              </form>
+	            ) : null}
 
-            {activeAction === "payment" ? (
-              <form className="entry-form" onSubmit={submitPayment}>
+	            {activeAction === "customer" ? (
+	              <form className="entry-form" onSubmit={submitCustomer}>
+	                <div className="form-grid">
+	                  <label>
+	                    <span>{t("customer")}</span>
+	                    <input
+	                      required
+	                      value={customerForm.name}
+	                      onChange={(event) => setCustomerForm((current) => ({ ...current, name: event.target.value }))}
+	                    />
+	                  </label>
+	                  <label>
+	                    <span>{t("phone")}</span>
+	                    <input
+	                      value={customerForm.phone}
+	                      onChange={(event) => setCustomerForm((current) => ({ ...current, phone: event.target.value }))}
+	                    />
+	                  </label>
+	                </div>
+	                <div className="form-grid">
+	                  <label>
+	                    <span>{t("route")}</span>
+	                    <input
+	                      value={customerForm.route}
+	                      onChange={(event) => setCustomerForm((current) => ({ ...current, route: event.target.value }))}
+	                    />
+	                  </label>
+	                  <label>
+	                    <span>{t("creditLimit")}</span>
+	                    <input
+	                      min={0}
+	                      onFocus={selectNumberInput}
+	                      type="number"
+	                      value={customerForm.creditLimit}
+	                      onChange={(event) =>
+	                        setCustomerForm((current) => ({ ...current, creditLimit: Number(event.target.value) || 0 }))
+	                      }
+	                    />
+	                  </label>
+	                </div>
+	                <label>
+	                  <span>Location</span>
+	                  <input
+	                    value={customerForm.location}
+	                    onChange={(event) => setCustomerForm((current) => ({ ...current, location: event.target.value }))}
+	                  />
+	                </label>
+	                <div className="modal-actions">
+	                  <button className="ghost-button" onClick={closeActionModal} type="button">
+	                    {t("close")}
+	                  </button>
+	                  <button className="primary-button" disabled={isActionSubmitting} type="submit">
+	                    {isActionSubmitting ? t("saving") : t("createCustomer")}
+	                  </button>
+	                </div>
+	              </form>
+	            ) : null}
+
+	            {activeAction === "payment" ? (
+	              <form className="entry-form" onSubmit={submitPayment}>
                 <label>
                   <span>{t("customer")}</span>
                   <select
@@ -2299,8 +2473,9 @@ export default function Home() {
                   <label>
                     <span>{t("amount")}</span>
                     <input
-                      min={1}
-                      type="number"
+	                          min={1}
+	                          onFocus={selectNumberInput}
+	                          type="number"
                       value={paymentForm.amount}
                       onChange={(event) =>
                         setPaymentForm((current) => ({ ...current, amount: Number(event.target.value) || 0 }))
@@ -2406,12 +2581,13 @@ export default function Home() {
                           ))}
                         </select>
                       </label>
-                      <label>
-                        <span>{t("quantity")}</span>
-                        <input
-                          min={1}
-                          type="number"
-                          value={item.loadedQuantity}
+	                      <label>
+	                        <span>{t("quantity")}</span>
+	                        <input
+	                          min={1}
+	                          onFocus={selectNumberInput}
+	                          type="number"
+	                          value={item.loadedQuantity}
                           onChange={(event) =>
                             setDeliveryForm((current) => ({
                               ...current,
@@ -2498,8 +2674,9 @@ export default function Home() {
                   <label>
                     <span>{t("cashCollected")}</span>
                     <input
-                      min={0}
-                      type="number"
+	                      min={0}
+	                      onFocus={selectNumberInput}
+	                      type="number"
                       value={reconcileForm.cashCollected}
                       onChange={(event) =>
                         setReconcileForm((current) => ({
@@ -2512,8 +2689,9 @@ export default function Home() {
                   <label>
                     <span>{t("creditIssued")}</span>
                     <input
-                      min={0}
-                      type="number"
+	                      min={0}
+	                      onFocus={selectNumberInput}
+	                      type="number"
                       value={reconcileForm.creditIssued}
                       onChange={(event) =>
                         setReconcileForm((current) => ({
@@ -2538,8 +2716,9 @@ export default function Home() {
                       <label>
                         <span>Delivered</span>
                         <input
-                          min={0}
-                          type="number"
+	                          min={0}
+	                          onFocus={selectNumberInput}
+	                          type="number"
                           value={item.deliveredQuantity}
                           onChange={(event) =>
                             setReconcileForm((current) => ({
@@ -2556,8 +2735,9 @@ export default function Home() {
                       <label>
                         <span>Returned</span>
                         <input
-                          min={0}
-                          type="number"
+	                          min={0}
+	                          onFocus={selectNumberInput}
+	                          type="number"
                           value={item.returnedQuantity}
                           onChange={(event) =>
                             setReconcileForm((current) => ({
@@ -2574,8 +2754,9 @@ export default function Home() {
                       <label>
                         <span>Damaged</span>
                         <input
-                          min={0}
-                          type="number"
+	                          min={0}
+	                          onFocus={selectNumberInput}
+	                          type="number"
                           value={item.damagedQuantity}
                           onChange={(event) =>
                             setReconcileForm((current) => ({

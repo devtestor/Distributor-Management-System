@@ -467,6 +467,23 @@ export function getCustomers(accessToken: string) {
   });
 }
 
+export function createCustomer(
+  accessToken: string,
+  payload: {
+    name: string;
+    phone?: string;
+    route?: string;
+    location?: string;
+    creditLimit: number;
+  }
+) {
+  return request<ApiCustomer>("/customers", {
+    method: "POST",
+    headers: authHeaders(accessToken),
+    body: JSON.stringify(payload)
+  });
+}
+
 export function getCustomerBalance(accessToken: string, customerId: string) {
   return request<ApiCustomerBalance>(`/customers/${customerId}/balance`, {
     headers: authHeaders(accessToken)

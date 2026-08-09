@@ -413,6 +413,14 @@ button {
   font-size: 13px;
 }
 
+.panel-actions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
 .table-wrap {
   overflow-x: auto;
 }

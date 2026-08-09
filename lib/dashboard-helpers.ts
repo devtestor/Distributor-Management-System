@@ -15,7 +15,7 @@ import type { Delivery, Locale, Payment, Product } from "@/lib/types";
 export const MAIN_WAREHOUSE_ID = "00000000-0000-0000-0000-000000000001";
 export const OFFLINE_DRAFTS_KEY = "offlineDrafts";
 
-export type ActionType = "stock" | "invoice" | "delivery" | "reconcile" | "payment" | null;
+export type ActionType = "stock" | "invoice" | "delivery" | "reconcile" | "payment" | "customer" | null;
 
 export type InvoiceFormItem = {
   productId: string;
