@@ -19,7 +19,7 @@ export class ProductsController {
   @Roles("OWNER", "ADMIN")
   @Post()
   create(@Body() dto: CreateProductDto, @Req() request: AuthenticatedRequest) {
-    return this.productsService.create(dto, request.user.companyId);
+    return this.productsService.create(dto, request.user.id, request.user.companyId);
   }
 
   @Get(":id/price-history")

@@ -4,7 +4,7 @@ import { Roles } from "../common/roles.decorator";
 import { ReportsService } from "./reports.service";
 
 @Controller("reports")
-@Roles("OWNER", "ACCOUNTANT")
+@Roles("OWNER", "ADMIN", "ACCOUNTANT")
 export class ReportsController {
   constructor(@Inject(ReportsService) private readonly reportsService: ReportsService) {}
 

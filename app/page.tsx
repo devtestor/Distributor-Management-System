@@ -6,6 +6,7 @@ import {
   ClipboardCheck,
   CreditCard,
   PackagePlus,
+  Pencil,
   ReceiptText,
   RotateCcw,
   Route,
@@ -49,10 +50,10 @@ import {
   createProduct,
   createInvoice,
   createUser,
+  deleteCustomer,
   deleteProduct,
   deleteUser,
   getProductPriceHistory,
-  getCustomerBalance,
   getCustomers,
   getDeliveryTrips,
   getAuditLogs,
@@ -78,6 +79,7 @@ import {
   resetUserPassword,
   recordPayment,
   updateCompanyProfile,
+  updateCustomer,
   updateProduct,
   updateUser
 } from "@/lib/api";
@@ -200,12 +202,14 @@ export default function Home() {
     items: [] as DeliveryLoadFormItem[]
   });
   const [customerForm, setCustomerForm] = useState({
+    customerId: "",
     name: "",
     phone: "",
     route: "",
     location: "",
     creditLimit: 0
   });
+  const [customerFormMode, setCustomerFormMode] = useState<"create" | "edit">("create");
   const [accountForm, setAccountForm] = useState({
     fullName: "",
     email: "",
@@ -307,7 +311,7 @@ export default function Home() {
 
       try {
         const profile = await getMe(token);
-        const canReadOwnerDashboard = profile.role === "OWNER" || profile.role === "ADMIN" || profile.role === "ACCOUNTANT";
+        const canReadOwnerDashboard = profile.role === "OWNER" || profile.role === "ADMIN";
         const canReadInventory = profile.role === "OWNER" || profile.role === "ADMIN" || profile.role === "WAREHOUSE_MANAGER";
         const canReadProducts =
           profile.role === "OWNER" ||
@@ -335,7 +339,7 @@ export default function Home() {
 
         const canManageUsers = profile.role === "OWNER" || profile.role === "ADMIN";
         const isOwner = profile.role === "OWNER";
-        const canReadReports = profile.role === "OWNER" || profile.role === "ACCOUNTANT";
+        const canReadReports = profile.role === "OWNER" || profile.role === "ADMIN" || profile.role === "ACCOUNTANT";
         const [rawUsers, rawRoles, rawAuditLogs, rawSalesReport, rawStockReport, rawDebtReport, rawEmptiesReport] = await Promise.all([
           canManageUsers ? optionalLiveData(getUsers(token), []) : Promise.resolve([]),
           canManageUsers ? optionalLiveData(getRoles(token), []) : Promise.resolve([]),
@@ -345,26 +349,16 @@ export default function Home() {
           canReadReports ? optionalLiveData(getDebtReport(token), null) : Promise.resolve(null),
           canReadReports ? optionalLiveData(getEmptiesReport(token), null) : Promise.resolve(null)
         ]);
-        const balances: Customer[] = await Promise.all(
-          rawCustomers.map(async (customer) => {
-          const balance = await optionalLiveData(getCustomerBalance(token, customer.id), {
-            customer,
-            outstanding: 0,
-            emptyBalance: 0
-          });
-
-          return {
-            id: customer.id,
-            name: customer.name,
-            route: customer.route ?? "-",
-            phone: customer.phone ?? "-",
-            creditLimit: asNumber(customer.creditLimit),
-            outstanding: balance.outstanding,
-            emptiesBalance: balance.emptyBalance,
-            lastOrder: customer.createdAt
-          };
-          })
-        );
+        const balances: Customer[] = rawCustomers.map((customer) => ({
+          id: customer.id,
+          name: customer.name,
+          route: customer.route ?? "-",
+          phone: customer.phone ?? "-",
+          creditLimit: asNumber(customer.creditLimit),
+          outstanding: customer.outstanding ?? 0,
+          emptiesBalance: customer.emptyBalance ?? 0,
+          lastOrder: customer.createdAt
+        }));
 
         setOwnerDashboard(dashboard);
         setCompanyProfile(company);
@@ -510,12 +504,13 @@ export default function Home() {
     void syncOfflineDrafts();
   }, [accessToken, isOnline, offlineDrafts.length, syncOfflineDrafts]);
 
-  const displayedProducts = liveProducts.length > 0 ? liveProducts : products;
-  const displayedCustomers = liveCustomers.length > 0 ? liveCustomers : customers;
-  const displayedDeliveries = liveDeliveries.length > 0 ? liveDeliveries : deliveries;
-  const displayedPayments = livePayments.length > 0 ? livePayments : payments;
+  const displayedProducts = isAuthenticated ? liveProducts : products;
+  const displayedCustomers = isAuthenticated ? liveCustomers : customers;
+  const displayedDeliveries = isAuthenticated ? liveDeliveries : deliveries;
+  const displayedPayments = isAuthenticated ? livePayments : payments;
   const canUseLiveActions = Boolean(accessToken && apiStatus === "connected");
   const canCreateCustomers = Boolean(user?.role && ["OWNER", "ADMIN", "ACCOUNTANT", "SALESPERSON"].includes(user.role));
+  const canManageCustomers = Boolean(user?.role && ["OWNER", "ADMIN"].includes(user.role));
   const canCreateDeliveries = Boolean(user?.role && ["OWNER", "ADMIN", "WAREHOUSE_MANAGER"].includes(user.role));
   const canReconcileDeliveries = Boolean(user?.role && ["OWNER", "ADMIN", "WAREHOUSE_MANAGER", "DRIVER"].includes(user.role));
   const canRecordPayments = Boolean(user?.role && ["OWNER", "ADMIN", "ACCOUNTANT", "SALESPERSON"].includes(user.role));
@@ -577,7 +572,7 @@ export default function Home() {
   const quickActions = [
     { key: "stock" as const, label: t("receiveStock"), icon: PackagePlus, roles: ["OWNER", "ADMIN", "WAREHOUSE_MANAGER"] as NavRole[] },
     { key: "invoice" as const, label: t("createInvoice"), icon: ReceiptText, roles: ["OWNER", "ADMIN", "SALESPERSON"] as NavRole[] },
-    { key: "delivery" as const, label: t("createDeliveryTrip"), icon: Truck, roles: ["OWNER", "ADMIN"] as NavRole[] },
+    { key: "delivery" as const, label: t("createDeliveryTrip"), icon: Truck, roles: ["OWNER", "ADMIN", "WAREHOUSE_MANAGER"] as NavRole[] },
     { key: "reconcile" as const, label: t("reconcileTruck"), icon: ClipboardCheck, roles: ["OWNER", "ADMIN", "WAREHOUSE_MANAGER", "DRIVER"] as NavRole[] },
     { key: "payment" as const, label: t("recordPayment"), icon: Banknote, roles: ["OWNER", "ADMIN", "SALESPERSON", "ACCOUNTANT"] as NavRole[] },
     { key: "customer" as const, label: t("createCustomer"), icon: Users, roles: ["OWNER", "ADMIN", "SALESPERSON", "ACCOUNTANT"] as NavRole[] }
@@ -683,6 +678,11 @@ export default function Home() {
     event.currentTarget.select();
   }
 
+  function parseNumericInput(value: string) {
+    const normalized = value.replace(/[^\d.]/g, "").replace(/^0+(?=\d)/, "");
+    return normalized === "" ? 0 : Number(normalized) || 0;
+  }
+
   function openActionModal(action: Exclude<ActionType, null>) {
     if (!canUseLiveActions) {
       setActionNotice(t("signInLiveApi"));
@@ -723,7 +723,9 @@ export default function Home() {
     }
 
     if (action === "customer") {
+      setCustomerFormMode("create");
       setCustomerForm({
+        customerId: "",
         name: "",
         phone: "",
         route: "",
@@ -862,9 +864,13 @@ export default function Home() {
 
     await runAction(
       async () => {
+        if (customerFormMode === "edit" && customerForm.customerId) {
+          await updateCustomer(accessToken, customerForm.customerId, payload);
+          return;
+        }
         await createCustomer(accessToken, payload);
       },
-      t("customerCreated")
+      customerFormMode === "edit" ? t("customerUpdated") : t("customerCreated")
     );
   }
 
@@ -1136,6 +1142,46 @@ export default function Home() {
     );
   }
 
+  function editCustomer(target: ApiCustomer) {
+    setCustomerFormMode("edit");
+    setCustomerForm({
+      customerId: target.id,
+      name: target.name,
+      phone: target.phone ?? "",
+      route: target.route ?? "",
+      location: target.location ?? "",
+      creditLimit: asNumber(target.creditLimit)
+    });
+    setActionNotice(null);
+    setActionError(null);
+    setActiveAction("customer");
+  }
+
+  async function toggleCustomerStatus(target: ApiCustomer) {
+    if (!accessToken) return;
+
+    await runAction(
+      async () => {
+        await updateCustomer(accessToken, target.id, {
+          isActive: !target.isActive
+        });
+      },
+      target.isActive ? t("customerDeactivated") : t("customerReactivated")
+    );
+  }
+
+  async function removeCustomer(target: ApiCustomer) {
+    if (!accessToken) return;
+    if (!window.confirm(t("deleteCustomerConfirm"))) return;
+
+    await runAction(
+      async () => {
+        await deleteCustomer(accessToken, target.id);
+      },
+      t("customerDeleted")
+    );
+  }
+
   return (
     <main className="app-shell" style={tenantTheme}>
       <DashboardSidebar
@@ -1378,7 +1424,7 @@ export default function Home() {
 	                            type="text"
                             value={productForm.unitCost}
                             onChange={(event) =>
-                              setProductForm((current) => ({ ...current, unitCost: Number(event.target.value) || 0 }))
+                              setProductForm((current) => ({ ...current, unitCost: parseNumericInput(event.target.value) }))
                             }
                           />
                         </label>
@@ -1392,7 +1438,7 @@ export default function Home() {
 	                            type="text"
                             value={productForm.unitPrice}
                             onChange={(event) =>
-                              setProductForm((current) => ({ ...current, unitPrice: Number(event.target.value) || 0 }))
+                              setProductForm((current) => ({ ...current, unitPrice: parseNumericInput(event.target.value) }))
                             }
                           />
                         </label>
@@ -1408,7 +1454,7 @@ export default function Home() {
 	                            type="text"
                             value={productForm.reorderLevel}
                             onChange={(event) =>
-                              setProductForm((current) => ({ ...current, reorderLevel: Number(event.target.value) || 0 }))
+                              setProductForm((current) => ({ ...current, reorderLevel: parseNumericInput(event.target.value) }))
                             }
                           />
                         </label>
@@ -1586,6 +1632,7 @@ export default function Home() {
                       <th>{t("creditLimit")}</th>
                       <th>{t("outstanding")}</th>
                       <th>{t("empties")}</th>
+                      {canManageCustomers ? <th>{t("action")}</th> : null}
                     </tr>
                   </thead>
                   <tbody>
@@ -1599,11 +1646,57 @@ export default function Home() {
                         <td>{money(customer.creditLimit)}</td>
                         <td>{money(customer.outstanding)}</td>
                         <td>{customer.emptiesBalance.toLocaleString()}</td>
+                        {canManageCustomers ? (
+                          <td>
+                            {apiCustomers.find((entry) => entry.id === customer.id) ? (
+                              <>
+                                <button
+                                  className="ghost-button inline-button"
+                                  disabled={isActionSubmitting}
+                                  onClick={() => {
+                                    const selected = apiCustomers.find((entry) => entry.id === customer.id);
+                                    if (selected) editCustomer(selected);
+                                  }}
+                                  title={t("editCustomer")}
+                                  type="button"
+                                >
+                                  <Pencil size={14} aria-hidden="true" />
+                                </button>
+                                <button
+                                  className="ghost-button inline-button"
+                                  disabled={isActionSubmitting}
+                                  onClick={() => {
+                                    const selected = apiCustomers.find((entry) => entry.id === customer.id);
+                                    if (selected) void toggleCustomerStatus(selected);
+                                  }}
+                                  type="button"
+                                >
+                                  {apiCustomers.find((entry) => entry.id === customer.id)?.isActive
+                                    ? t("deactivate")
+                                    : t("reactivate")}
+                                </button>
+                                <button
+                                  aria-label={t("deleteCustomer")}
+                                  className="ghost-button danger-button inline-button"
+                                  disabled={isActionSubmitting}
+                                  onClick={() => {
+                                    const selected = apiCustomers.find((entry) => entry.id === customer.id);
+                                    if (selected) void removeCustomer(selected);
+                                  }}
+                                  title={t("deleteCustomer")}
+                                  type="button"
+                                >
+                                  <Trash2 size={14} aria-hidden="true" />
+                                </button>
+                              </>
+                            ) : null}
+                          </td>
+                        ) : null}
                       </tr>
                     ))}
                     {displayedCustomers.length === 0 ? (
                       <tr>
-                        <td className="table-state" colSpan={5}>
+                        <td className="table-state" colSpan={canManageCustomers ? 6 : 5}>
                           {isLiveDataLoading ? t("loadingData") : t("noRecords")}
                         </td>
                       </tr>
@@ -2338,7 +2431,9 @@ export default function Home() {
                       : activeAction === "reconcile"
                         ? t("reconcileTruck")
                         : activeAction === "customer"
-                          ? t("createCustomer")
+                          ? customerFormMode === "edit"
+                            ? t("editCustomer")
+                            : t("createCustomer")
                           : t("recordPayment")}
               </h3>
               <button className="icon-button" onClick={closeActionModal} type="button">
@@ -2372,7 +2467,7 @@ export default function Home() {
 	                    type="text"
                     value={stockForm.quantity}
                     onChange={(event) =>
-                      setStockForm((current) => ({ ...current, quantity: Number(event.target.value) || 0 }))
+                      setStockForm((current) => ({ ...current, quantity: parseNumericInput(event.target.value) }))
                     }
                   />
                 </label>
@@ -2461,7 +2556,7 @@ export default function Home() {
                             setInvoiceForm((current) => ({
                               ...current,
                               items: current.items.map((entry, entryIndex) =>
-                                entryIndex === index ? { ...entry, quantity: Number(event.target.value) || 0 } : entry
+                                entryIndex === index ? { ...entry, quantity: parseNumericInput(event.target.value) } : entry
                               )
                             }))
                           }
@@ -2480,7 +2575,7 @@ export default function Home() {
                               ...current,
                               items: current.items.map((entry, entryIndex) =>
                                 entryIndex === index
-                                  ? { ...entry, discountAmount: Number(event.target.value) || 0 }
+                                  ? { ...entry, discountAmount: parseNumericInput(event.target.value) }
                                   : entry
                               )
                             }))
@@ -2533,7 +2628,7 @@ export default function Home() {
                       onChange={(event) =>
                         setInvoiceForm((current) => ({
                           ...current,
-                          initialPaymentAmount: Number(event.target.value) || 0
+                          initialPaymentAmount: parseNumericInput(event.target.value)
                         }))
                       }
                     />
@@ -2596,7 +2691,7 @@ export default function Home() {
 	                      type="text"
 	                      value={customerForm.creditLimit}
 	                      onChange={(event) =>
-	                        setCustomerForm((current) => ({ ...current, creditLimit: Number(event.target.value) || 0 }))
+	                        setCustomerForm((current) => ({ ...current, creditLimit: parseNumericInput(event.target.value) }))
 	                      }
 	                    />
 	                  </label>
@@ -2613,7 +2708,11 @@ export default function Home() {
 	                    {t("close")}
 	                  </button>
 	                  <button className="primary-button" disabled={isActionSubmitting} type="submit">
-	                    {isActionSubmitting ? t("saving") : t("createCustomer")}
+	                    {isActionSubmitting
+	                      ? t("saving")
+	                      : customerFormMode === "edit"
+	                        ? t("updateCustomer")
+	                        : t("createCustomer")}
 	                  </button>
 	                </div>
 	              </form>
@@ -2681,7 +2780,7 @@ export default function Home() {
 	                          type="text"
                       value={paymentForm.amount}
                       onChange={(event) =>
-                        setPaymentForm((current) => ({ ...current, amount: Number(event.target.value) || 0 }))
+                        setPaymentForm((current) => ({ ...current, amount: parseNumericInput(event.target.value) }))
                       }
                     />
                   </label>
@@ -2797,7 +2896,7 @@ export default function Home() {
                               ...current,
                               items: current.items.map((entry, entryIndex) =>
                                 entryIndex === index
-                                  ? { ...entry, loadedQuantity: Number(event.target.value) || 0 }
+                                  ? { ...entry, loadedQuantity: parseNumericInput(event.target.value) }
                                   : entry
                               )
                             }))
@@ -2886,7 +2985,7 @@ export default function Home() {
                       onChange={(event) =>
                         setReconcileForm((current) => ({
                           ...current,
-                          cashCollected: Number(event.target.value) || 0
+                          cashCollected: parseNumericInput(event.target.value)
                         }))
                       }
                     />
@@ -2902,7 +3001,7 @@ export default function Home() {
                       onChange={(event) =>
                         setReconcileForm((current) => ({
                           ...current,
-                          creditIssued: Number(event.target.value) || 0
+                          creditIssued: parseNumericInput(event.target.value)
                         }))
                       }
                     />
@@ -2932,7 +3031,7 @@ export default function Home() {
                               ...current,
                               items: current.items.map((entry, entryIndex) =>
                                 entryIndex === index
-                                  ? { ...entry, deliveredQuantity: Number(event.target.value) || 0 }
+                                  ? { ...entry, deliveredQuantity: parseNumericInput(event.target.value) }
                                   : entry
                               )
                             }))
@@ -2952,7 +3051,7 @@ export default function Home() {
                               ...current,
                               items: current.items.map((entry, entryIndex) =>
                                 entryIndex === index
-                                  ? { ...entry, returnedQuantity: Number(event.target.value) || 0 }
+                                  ? { ...entry, returnedQuantity: parseNumericInput(event.target.value) }
                                   : entry
                               )
                             }))
@@ -2972,7 +3071,7 @@ export default function Home() {
                               ...current,
                               items: current.items.map((entry, entryIndex) =>
                                 entryIndex === index
-                                  ? { ...entry, damagedQuantity: Number(event.target.value) || 0 }
+                                  ? { ...entry, damagedQuantity: parseNumericInput(event.target.value) }
                                   : entry
                               )
                             }))

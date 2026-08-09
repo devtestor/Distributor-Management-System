@@ -17,9 +17,9 @@ type InvoiceTransaction = Prisma.TransactionClient;
 export class InvoicesService {
   constructor(@Inject(PrismaService) private readonly prisma: PrismaService) {}
 
-  list(companyId: string, query?: PaginationQuery) {
+  list(actorUserId: string, actorRole: string, companyId: string, query?: PaginationQuery) {
     return this.prisma.invoice.findMany({
-      where: { companyId },
+      where: actorRole === "SALESPERSON" ? { companyId, createdById: actorUserId } : { companyId },
       include: { customer: true, items: { include: { product: true } }, payments: true },
       orderBy: { createdAt: "desc" },
       ...paginationArgs(query)

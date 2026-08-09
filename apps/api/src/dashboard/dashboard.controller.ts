@@ -7,7 +7,7 @@ import { DashboardService } from "./dashboard.service";
 export class DashboardController {
   constructor(@Inject(DashboardService) private readonly dashboardService: DashboardService) {}
 
-  @Roles("OWNER", "ADMIN", "ACCOUNTANT")
+  @Roles("OWNER", "ADMIN")
   @Get("owner")
   ownerDashboard(@Req() request: AuthenticatedRequest) {
     return this.dashboardService.getOwnerDashboard(request.user.companyId);

@@ -8,9 +8,9 @@ import { CreatePaymentDto } from "./dto/create-payment.dto";
 export class PaymentsService {
   constructor(@Inject(PrismaService) private readonly prisma: PrismaService) {}
 
-  list(companyId: string, query?: PaginationQuery) {
+  list(actorUserId: string, actorRole: string, companyId: string, query?: PaginationQuery) {
     return this.prisma.payment.findMany({
-      where: { companyId },
+      where: actorRole === "SALESPERSON" ? { companyId, receivedById: actorUserId } : { companyId },
       include: { customer: true, invoice: true },
       orderBy: { receivedAt: "desc" },
       ...paginationArgs(query)

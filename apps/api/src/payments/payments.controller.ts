@@ -12,7 +12,7 @@ export class PaymentsController {
   @Roles("OWNER", "ADMIN", "ACCOUNTANT", "SALESPERSON")
   @Get()
   list(@Query() query: PaginationQuery, @Req() request: AuthenticatedRequest) {
-    return this.paymentsService.list(request.user.companyId, query);
+    return this.paymentsService.list(request.user.id, request.user.role, request.user.companyId, query);
   }
 
   @Roles("OWNER", "ADMIN", "ACCOUNTANT", "SALESPERSON")

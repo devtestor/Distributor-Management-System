@@ -1,8 +1,9 @@
-import { Body, Controller, Get, Inject, Param, Post, Query, Req } from "@nestjs/common";
+import { Body, Controller, Delete, Get, Inject, Param, Patch, Post, Query, Req } from "@nestjs/common";
 import type { AuthenticatedRequest } from "../common/authenticated-request";
 import type { PaginationQuery } from "../common/pagination";
 import { Roles } from "../common/roles.decorator";
 import { CreateCustomerDto } from "./dto/create-customer.dto";
+import { UpdateCustomerDto } from "./dto/update-customer.dto";
 import { CustomersService } from "./customers.service";
 
 @Controller("customers")
@@ -18,7 +19,19 @@ export class CustomersController {
   @Roles("OWNER", "ADMIN", "ACCOUNTANT", "SALESPERSON")
   @Post()
   create(@Body() dto: CreateCustomerDto, @Req() request: AuthenticatedRequest) {
-    return this.customersService.create(dto, request.user.companyId);
+    return this.customersService.create(dto, request.user.id, request.user.companyId);
+  }
+
+  @Roles("OWNER", "ADMIN")
+  @Patch(":id")
+  update(@Param("id") id: string, @Body() dto: UpdateCustomerDto, @Req() request: AuthenticatedRequest) {
+    return this.customersService.update(id, dto, request.user.id, request.user.companyId);
+  }
+
+  @Roles("OWNER", "ADMIN")
+  @Delete(":id")
+  delete(@Param("id") id: string, @Req() request: AuthenticatedRequest) {
+    return this.customersService.delete(id, request.user.id, request.user.companyId);
   }
 
   @Roles("OWNER", "ADMIN", "ACCOUNTANT")

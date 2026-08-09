@@ -100,24 +100,45 @@ export class StockService {
       select: { unitCost: true }
     });
 
-    return this.prisma.stockMovement.create({
-      data: {
-        productId: input.productId,
-        companyId: input.companyId,
-        warehouseId: input.warehouseId,
-        movementType: input.movementType,
-        quantity: input.quantity,
-        unitCost: product?.unitCost,
-        note: input.note,
-        createdById: input.createdById
-      },
-      include: {
-        product: true,
-        warehouse: true,
-        createdBy: {
-          include: { role: true }
+    return this.prisma.$transaction(async (tx) => {
+      const movement = await tx.stockMovement.create({
+        data: {
+          productId: input.productId,
+          companyId: input.companyId,
+          warehouseId: input.warehouseId,
+          movementType: input.movementType,
+          quantity: input.quantity,
+          unitCost: product?.unitCost,
+          note: input.note,
+          createdById: input.createdById
+        },
+        include: {
+          product: true,
+          warehouse: true,
+          createdBy: {
+            include: { role: true }
+          }
         }
-      }
+      });
+
+      await tx.auditLog.create({
+        data: {
+          userId: input.createdById,
+          companyId: input.companyId,
+          action: "STOCK_MOVEMENT_RECORDED",
+          entity: "StockMovement",
+          entityId: movement.id,
+          metadata: {
+            productId: input.productId,
+            warehouseId: input.warehouseId,
+            movementType: input.movementType,
+            quantity: input.quantity,
+            allowNegative: input.allowNegative ?? false
+          }
+        }
+      });
+
+      return movement;
     });
   }
 
@@ -180,6 +201,23 @@ export class StockService {
         }
       });
 
+      await tx.auditLog.create({
+        data: {
+          userId: input.createdById,
+          companyId: input.companyId,
+          action: "STOCK_TRANSFER_RECORDED",
+          entity: "StockMovement",
+          entityId: referenceId,
+          metadata: {
+            productId: input.productId,
+            fromWarehouseId: input.fromWarehouseId,
+            toWarehouseId: input.toWarehouseId,
+            quantity: input.quantity,
+            allowNegative: input.allowNegative ?? false
+          }
+        }
+      });
+
       return { referenceId, outbound, inbound };
     });
   }
@@ -195,25 +233,46 @@ export class StockService {
       select: { unitCost: true }
     });
 
-    return this.prisma.stockMovement.create({
-      data: {
-        productId: input.productId,
-        companyId: input.companyId,
-        warehouseId: input.warehouseId,
-        movementType: StockMovementType.COUNT_ADJUSTMENT,
-        quantity: adjustmentQuantity,
-        unitCost: product?.unitCost,
-        referenceType: "PHYSICAL_STOCK_COUNT",
-        note: input.note ?? `Physical count set stock to ${input.countedQuantity}`,
-        createdById: input.createdById
-      },
-      include: {
-        product: true,
-        warehouse: true,
-        createdBy: {
-          include: { role: true }
+    return this.prisma.$transaction(async (tx) => {
+      const movement = await tx.stockMovement.create({
+        data: {
+          productId: input.productId,
+          companyId: input.companyId,
+          warehouseId: input.warehouseId,
+          movementType: StockMovementType.COUNT_ADJUSTMENT,
+          quantity: adjustmentQuantity,
+          unitCost: product?.unitCost,
+          referenceType: "PHYSICAL_STOCK_COUNT",
+          note: input.note ?? `Physical count set stock to ${input.countedQuantity}`,
+          createdById: input.createdById
+        },
+        include: {
+          product: true,
+          warehouse: true,
+          createdBy: {
+            include: { role: true }
+          }
         }
-      }
+      });
+
+      await tx.auditLog.create({
+        data: {
+          userId: input.createdById,
+          companyId: input.companyId,
+          action: "STOCK_COUNT_RECORDED",
+          entity: "StockMovement",
+          entityId: movement.id,
+          metadata: {
+            productId: input.productId,
+            warehouseId: input.warehouseId,
+            previousQuantity: currentStock,
+            countedQuantity: input.countedQuantity,
+            adjustmentQuantity
+          }
+        }
+      });
+
+      return movement;
     });
   }
 

@@ -1,25 +1,152 @@
-import { Inject, Injectable, NotFoundException } from "@nestjs/common";
+import { BadRequestException, Inject, Injectable, NotFoundException } from "@nestjs/common";
 import { EmptyMovementType, InvoiceStatus } from "@prisma/client";
 import { PrismaService } from "../prisma/prisma.service";
 import { paginationArgs, type PaginationQuery } from "../common/pagination";
 import { CreateCustomerDto } from "./dto/create-customer.dto";
+import { UpdateCustomerDto } from "./dto/update-customer.dto";
 
 @Injectable()
 export class CustomersService {
   constructor(@Inject(PrismaService) private readonly prisma: PrismaService) {}
 
-  list(companyId: string, query?: PaginationQuery) {
-    return this.prisma.customer.findMany({
+  async list(companyId: string, query?: PaginationQuery) {
+    const customers = await this.prisma.customer.findMany({
       where: { companyId },
+      include: {
+        invoices: {
+          where: { status: { not: InvoiceStatus.CANCELLED } },
+          select: { totalAmount: true }
+        },
+        payments: {
+          select: { amount: true }
+        },
+        emptyContainerMovements: {
+          select: { movementType: true, quantity: true }
+        }
+      },
       orderBy: { name: "asc" },
       ...paginationArgs(query)
     });
+
+    return customers.map((customer) => {
+      const invoiceTotal = customer.invoices.reduce((sum, invoice) => sum + Number(invoice.totalAmount), 0);
+      const paymentTotal = customer.payments.reduce((sum, payment) => sum + Number(payment.amount), 0);
+      const emptyBalance = customer.emptyContainerMovements.reduce((sum, movement) => {
+        if (movement.movementType === EmptyMovementType.RETURNED_BY_CUSTOMER) {
+          return sum - movement.quantity;
+        }
+        return sum + movement.quantity;
+      }, 0);
+
+      return {
+        id: customer.id,
+        companyId: customer.companyId,
+        name: customer.name,
+        phone: customer.phone,
+        route: customer.route,
+        location: customer.location,
+        creditLimit: customer.creditLimit,
+        isActive: customer.isActive,
+        createdAt: customer.createdAt,
+        outstanding: invoiceTotal - paymentTotal,
+        emptyBalance
+      };
+    });
   }
 
-  create(dto: CreateCustomerDto, companyId: string) {
-    return this.prisma.customer.create({
+  async create(dto: CreateCustomerDto, actorUserId: string, companyId: string) {
+    const customer = await this.prisma.customer.create({
       data: { ...dto, companyId }
     });
+
+    await this.prisma.auditLog.create({
+      data: {
+        userId: actorUserId,
+        companyId,
+        action: "CUSTOMER_CREATED",
+        entity: "Customer",
+        entityId: customer.id,
+        metadata: {
+          name: customer.name,
+          route: customer.route
+        }
+      }
+    });
+
+    return customer;
+  }
+
+  async update(customerId: string, dto: UpdateCustomerDto, actorUserId: string, companyId: string) {
+    const customer = await this.prisma.customer.findUnique({
+      where: { id: customerId, companyId }
+    });
+    if (!customer) throw new NotFoundException("Customer not found");
+
+    const updated = await this.prisma.customer.update({
+      where: { id: customerId, companyId },
+      data: dto
+    });
+
+    await this.prisma.auditLog.create({
+      data: {
+        userId: actorUserId,
+        companyId,
+        action: "CUSTOMER_UPDATED",
+        entity: "Customer",
+        entityId: updated.id,
+        metadata: {
+          name: updated.name,
+          route: updated.route,
+          isActive: updated.isActive
+        }
+      }
+    });
+
+    return updated;
+  }
+
+  async delete(customerId: string, actorUserId: string, companyId: string) {
+    const customer = await this.prisma.customer.findUnique({
+      where: { id: customerId, companyId },
+      include: {
+        _count: {
+          select: {
+            invoices: true,
+            payments: true,
+            emptyContainerMovements: true
+          }
+        }
+      }
+    });
+    if (!customer) throw new NotFoundException("Customer not found");
+
+    const relatedRecords = customer._count.invoices + customer._count.payments + customer._count.emptyContainerMovements;
+    if (relatedRecords > 0) {
+      throw new BadRequestException("This customer has business history. Deactivate it instead.");
+    }
+
+    await this.prisma.customer.delete({
+      where: { id: customerId, companyId }
+    });
+
+    await this.prisma.auditLog.create({
+      data: {
+        userId: actorUserId,
+        companyId,
+        action: "CUSTOMER_DELETED",
+        entity: "Customer",
+        entityId: customer.id,
+        metadata: {
+          name: customer.name,
+          route: customer.route
+        }
+      }
+    });
+
+    return {
+      id: customer.id,
+      deletedById: actorUserId
+    };
   }
 
   async getBalance(customerId: string, companyId: string) {

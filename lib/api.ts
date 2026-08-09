@@ -140,6 +140,8 @@ export type ApiCustomer = {
   creditLimit: number | string;
   isActive: boolean;
   createdAt: string;
+  outstanding?: number;
+  emptyBalance?: number;
 };
 
 export type ApiCustomerBalance = {
@@ -520,6 +522,32 @@ export function createCustomer(
     method: "POST",
     headers: authHeaders(accessToken),
     body: JSON.stringify(payload)
+  });
+}
+
+export function updateCustomer(
+  accessToken: string,
+  customerId: string,
+  payload: {
+    name?: string;
+    phone?: string;
+    route?: string;
+    location?: string;
+    creditLimit?: number;
+    isActive?: boolean;
+  }
+) {
+  return request<ApiCustomer>(`/customers/${customerId}`, {
+    method: "PATCH",
+    headers: authHeaders(accessToken),
+    body: JSON.stringify(payload)
+  });
+}
+
+export function deleteCustomer(accessToken: string, customerId: string) {
+  return request<{ id: string; deletedById: string }>(`/customers/${customerId}`, {
+    method: "DELETE",
+    headers: authHeaders(accessToken)
   });
 }
 

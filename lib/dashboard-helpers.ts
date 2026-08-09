@@ -66,7 +66,7 @@ export const navItemConfig: NavItemConfig[] = [
   { key: "customers", labelKey: "customers", icon: Users, roles: ["OWNER", "ADMIN", "SALESPERSON", "ACCOUNTANT"] },
   { key: "deliveries", labelKey: "deliveries", icon: Truck, roles: ["OWNER", "ADMIN", "WAREHOUSE_MANAGER", "DRIVER"] },
   { key: "payments", labelKey: "payments", icon: Banknote, roles: ["OWNER", "ADMIN", "SALESPERSON", "ACCOUNTANT"] },
-  { key: "reports", labelKey: "reports", icon: FileBarChart, roles: ["OWNER", "ACCOUNTANT"] },
+  { key: "reports", labelKey: "reports", icon: FileBarChart, roles: ["OWNER", "ADMIN", "ACCOUNTANT"] },
   { key: "settings", labelKey: "settings", icon: Settings, roles: ["OWNER", "ADMIN"] }
 ];
 

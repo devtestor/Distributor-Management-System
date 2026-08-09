@@ -17,30 +17,50 @@ export class ProductsService {
     });
   }
 
-  async create(dto: CreateProductDto, companyId: string) {
+  async create(dto: CreateProductDto, actorUserId: string, companyId: string) {
     try {
-      return await this.prisma.product.create({
-        data: {
-          companyId,
-          ...dto,
-          unitCost: dto.unitCost,
-          unitPrice: dto.unitPrice,
-          tracksEmpties: dto.tracksEmpties ?? false,
-          priceHistory: {
-            create: {
-              companyId,
-              newCost: dto.unitCost,
-              newPrice: dto.unitPrice,
-              changeReason: "Initial product price"
+      return await this.prisma.$transaction(async (tx) => {
+        const product = await tx.product.create({
+          data: {
+            companyId,
+            ...dto,
+            unitCost: dto.unitCost,
+            unitPrice: dto.unitPrice,
+            tracksEmpties: dto.tracksEmpties ?? false,
+            priceHistory: {
+              create: {
+                companyId,
+                changedById: actorUserId,
+                newCost: dto.unitCost,
+                newPrice: dto.unitPrice,
+                changeReason: "Initial product price"
+              }
+            }
+          },
+          include: {
+            priceHistory: {
+              orderBy: { createdAt: "desc" },
+              take: 5
             }
           }
-        },
-        include: {
-          priceHistory: {
-            orderBy: { createdAt: "desc" },
-            take: 5
+        });
+
+        await tx.auditLog.create({
+          data: {
+            userId: actorUserId,
+            companyId,
+            action: "PRODUCT_CREATED",
+            entity: "Product",
+            entityId: product.id,
+            metadata: {
+              sku: product.sku,
+              name: product.name,
+              unitPrice: dto.unitPrice
+            }
           }
-        }
+        });
+
+        return product;
       });
     } catch (error) {
       if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2002") {
