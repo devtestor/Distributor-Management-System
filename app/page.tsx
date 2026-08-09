@@ -1274,8 +1274,9 @@ export default function Home() {
                           <input
 	                            min={0}
 	                            onFocus={selectNumberInput}
+	                            inputMode="decimal"
 	                            required
-	                            type="number"
+	                            type="text"
                             value={productForm.unitCost}
                             onChange={(event) =>
                               setProductForm((current) => ({ ...current, unitCost: Number(event.target.value) || 0 }))
@@ -1287,8 +1288,9 @@ export default function Home() {
                           <input
 	                            min={0}
 	                            onFocus={selectNumberInput}
+	                            inputMode="decimal"
 	                            required
-	                            type="number"
+	                            type="text"
                             value={productForm.unitPrice}
                             onChange={(event) =>
                               setProductForm((current) => ({ ...current, unitPrice: Number(event.target.value) || 0 }))
@@ -1302,8 +1304,9 @@ export default function Home() {
                           <input
 	                            min={0}
 	                            onFocus={selectNumberInput}
+	                            inputMode="numeric"
 	                            required
-	                            type="number"
+	                            type="text"
                             value={productForm.reorderLevel}
                             onChange={(event) =>
                               setProductForm((current) => ({ ...current, reorderLevel: Number(event.target.value) || 0 }))
@@ -2171,7 +2174,8 @@ export default function Home() {
                   <input
 	                    min={1}
 	                    onFocus={selectNumberInput}
-	                    type="number"
+	                    inputMode="numeric"
+	                    type="text"
                     value={stockForm.quantity}
                     onChange={(event) =>
                       setStockForm((current) => ({ ...current, quantity: Number(event.target.value) || 0 }))
@@ -2256,7 +2260,8 @@ export default function Home() {
                         <input
 	                          min={1}
 	                          onFocus={selectNumberInput}
-	                          type="number"
+	                          inputMode="numeric"
+	                          type="text"
                           value={item.quantity}
                           onChange={(event) =>
                             setInvoiceForm((current) => ({
@@ -2273,7 +2278,8 @@ export default function Home() {
                         <input
 	                          min={0}
 	                          onFocus={selectNumberInput}
-	                          type="number"
+	                          inputMode="decimal"
+	                          type="text"
                           value={item.discountAmount}
                           onChange={(event) =>
                             setInvoiceForm((current) => ({
@@ -2327,7 +2333,8 @@ export default function Home() {
                     <input
 	                      min={0}
 	                      onFocus={selectNumberInput}
-	                      type="number"
+	                      inputMode="decimal"
+	                      type="text"
                       value={invoiceForm.initialPaymentAmount}
                       onChange={(event) =>
                         setInvoiceForm((current) => ({
@@ -2391,7 +2398,8 @@ export default function Home() {
 	                    <input
 	                      min={0}
 	                      onFocus={selectNumberInput}
-	                      type="number"
+	                      inputMode="decimal"
+	                      type="text"
 	                      value={customerForm.creditLimit}
 	                      onChange={(event) =>
 	                        setCustomerForm((current) => ({ ...current, creditLimit: Number(event.target.value) || 0 }))
@@ -2475,7 +2483,8 @@ export default function Home() {
                     <input
 	                          min={1}
 	                          onFocus={selectNumberInput}
-	                          type="number"
+	                          inputMode="decimal"
+	                          type="text"
                       value={paymentForm.amount}
                       onChange={(event) =>
                         setPaymentForm((current) => ({ ...current, amount: Number(event.target.value) || 0 }))
@@ -2586,7 +2595,8 @@ export default function Home() {
 	                        <input
 	                          min={1}
 	                          onFocus={selectNumberInput}
-	                          type="number"
+	                          inputMode="numeric"
+	                          type="text"
 	                          value={item.loadedQuantity}
                           onChange={(event) =>
                             setDeliveryForm((current) => ({
@@ -2676,7 +2686,8 @@ export default function Home() {
                     <input
 	                      min={0}
 	                      onFocus={selectNumberInput}
-	                      type="number"
+	                      inputMode="decimal"
+	                      type="text"
                       value={reconcileForm.cashCollected}
                       onChange={(event) =>
                         setReconcileForm((current) => ({
@@ -2691,7 +2702,8 @@ export default function Home() {
                     <input
 	                      min={0}
 	                      onFocus={selectNumberInput}
-	                      type="number"
+	                      inputMode="decimal"
+	                      type="text"
                       value={reconcileForm.creditIssued}
                       onChange={(event) =>
                         setReconcileForm((current) => ({
@@ -2718,7 +2730,8 @@ export default function Home() {
                         <input
 	                          min={0}
 	                          onFocus={selectNumberInput}
-	                          type="number"
+	                          inputMode="numeric"
+	                          type="text"
                           value={item.deliveredQuantity}
                           onChange={(event) =>
                             setReconcileForm((current) => ({
@@ -2737,7 +2750,8 @@ export default function Home() {
                         <input
 	                          min={0}
 	                          onFocus={selectNumberInput}
-	                          type="number"
+	                          inputMode="numeric"
+	                          type="text"
                           value={item.returnedQuantity}
                           onChange={(event) =>
                             setReconcileForm((current) => ({
@@ -2756,7 +2770,8 @@ export default function Home() {
                         <input
 	                          min={0}
 	                          onFocus={selectNumberInput}
-	                          type="number"
+	                          inputMode="numeric"
+	                          type="text"
                           value={item.damagedQuantity}
                           onChange={(event) =>
                             setReconcileForm((current) => ({
