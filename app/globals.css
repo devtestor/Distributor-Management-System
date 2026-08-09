@@ -7,6 +7,7 @@
   --line: #d9dfd8;
   --brand: #0b6b50;
   --brand-strong: #064835;
+  --tenant-accent: #f4c542;
   --accent: #c9342f;
   --amber: #b7791f;
   --blue: #245b96;
@@ -68,9 +69,15 @@ button {
   border-radius: 8px;
   display: grid;
   place-items: center;
-  background: #f4c542;
+  background: var(--tenant-accent);
   color: #14211b;
   font-weight: 800;
+  overflow: hidden;
+}
+
+.brand-mark.with-logo {
+  background-position: center;
+  background-size: cover;
 }
 
 .brand h1 {

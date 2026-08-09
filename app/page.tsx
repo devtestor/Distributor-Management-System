@@ -16,7 +16,7 @@ import {
   Users,
   X
 } from "lucide-react";
-import { FocusEvent, FormEvent, useCallback, useEffect, useMemo, useState } from "react";
+import { CSSProperties, FocusEvent, FormEvent, useCallback, useEffect, useMemo, useState } from "react";
 import { DashboardOverview } from "@/components/dashboard/overview";
 import {
   AuthBand,
@@ -30,6 +30,7 @@ import {
 } from "@/components/dashboard/shell";
 import {
   ApiAuditLog,
+  ApiCompanyProfile,
   ApiCustomer,
   ApiDeliveryTrip,
   ApiInvoice,
@@ -56,6 +57,7 @@ import {
   getDeliveryTrips,
   getAuditLogs,
   getApiHealth,
+  getCompanyProfile,
   getInvoices,
   getMe,
   getOwnerDashboard,
@@ -75,6 +77,7 @@ import {
   reconcileDeliveryTrip,
   resetUserPassword,
   recordPayment,
+  updateCompanyProfile,
   updateProduct,
   updateUser
 } from "@/lib/api";
@@ -107,6 +110,25 @@ import { dictionary, locales, TranslationKey } from "@/lib/i18n";
 import { customers, deliveries, payments, products } from "@/lib/mock-data";
 import { Customer, Delivery, Locale, Payment, Product } from "@/lib/types";
 
+const defaultCompanyProfile: ApiCompanyProfile = {
+  id: "",
+  name: "BRALIRWA Distributor",
+  code: "BRALIRWA-DEMO",
+  industry: "Beverage distribution",
+  logoUrl: null,
+  primaryColor: "#0b6b50",
+  secondaryColor: "#f4c542",
+  currency: "RWF",
+  defaultLocale: "en",
+  featureFlags: {
+    emptiesTracking: true,
+    creditManagement: true,
+    deliveryRoutes: true,
+    invoicePayments: true
+  },
+  createdAt: ""
+};
+
 export default function Home() {
   const [locale, setLocale] = useState<Locale>("en");
   const [accessToken, setAccessToken] = useState<string | null>(null);
@@ -116,6 +138,7 @@ export default function Home() {
   const [authError, setAuthError] = useState<string | null>(null);
   const [isLoggingIn, setIsLoggingIn] = useState(false);
   const [ownerDashboard, setOwnerDashboard] = useState<OwnerDashboardResponse | null>(null);
+  const [companyProfile, setCompanyProfile] = useState<ApiCompanyProfile>(defaultCompanyProfile);
   const [liveProducts, setLiveProducts] = useState<Product[]>([]);
   const [liveCustomers, setLiveCustomers] = useState<Customer[]>([]);
   const [liveDeliveries, setLiveDeliveries] = useState<Delivery[]>([]);
@@ -199,10 +222,33 @@ export default function Home() {
     userId: "",
     newPassword: ""
   });
+  const [companyForm, setCompanyForm] = useState({
+    name: defaultCompanyProfile.name,
+    industry: defaultCompanyProfile.industry,
+    logoUrl: "",
+    primaryColor: defaultCompanyProfile.primaryColor,
+    secondaryColor: defaultCompanyProfile.secondaryColor,
+    currency: defaultCompanyProfile.currency,
+    defaultLocale: defaultCompanyProfile.defaultLocale
+  });
   const [productForm, setProductForm] = useState(emptyProductForm);
   const t = useCallback((key: TranslationKey) => dictionary[locale][key], [locale]);
   const isAccountAdmin = user?.role === "OWNER" || user?.role === "ADMIN";
   const isAuthenticated = Boolean(user && accessToken && apiStatus === "connected");
+  const brandInitials = useMemo(() => {
+    const words = companyProfile.name.replace(/[^a-zA-Z0-9 ]/g, " ").trim().split(/\s+/).filter(Boolean);
+    if (words.length === 0) return "DC";
+    return words.slice(0, 2).map((word) => word[0]).join("").toUpperCase();
+  }, [companyProfile.name]);
+  const tenantTheme = useMemo(
+    () =>
+      ({
+        "--brand": companyProfile.primaryColor,
+        "--brand-strong": companyProfile.primaryColor,
+        "--tenant-accent": companyProfile.secondaryColor
+      }) as CSSProperties,
+    [companyProfile.primaryColor, companyProfile.secondaryColor]
+  );
 
   const saveOfflineDrafts = useCallback((drafts: OfflineDraft[]) => {
     setOfflineDrafts(drafts);
@@ -226,6 +272,16 @@ export default function Home() {
 
   const clearLiveState = useCallback(() => {
     setOwnerDashboard(null);
+    setCompanyProfile(defaultCompanyProfile);
+    setCompanyForm({
+      name: defaultCompanyProfile.name,
+      industry: defaultCompanyProfile.industry,
+      logoUrl: "",
+      primaryColor: defaultCompanyProfile.primaryColor,
+      secondaryColor: defaultCompanyProfile.secondaryColor,
+      currency: defaultCompanyProfile.currency,
+      defaultLocale: defaultCompanyProfile.defaultLocale
+    });
     setLiveProducts([]);
     setLiveCustomers([]);
     setLiveDeliveries([]);
@@ -265,7 +321,8 @@ export default function Home() {
         const canReadDeliveryRecords =
           profile.role === "OWNER" || profile.role === "ADMIN" || profile.role === "WAREHOUSE_MANAGER" || profile.role === "DRIVER";
         const canReadVehicles = profile.role === "OWNER" || profile.role === "ADMIN" || profile.role === "WAREHOUSE_MANAGER";
-        const [dashboard, rawProducts, stockItems, rawCustomers, rawPayments, rawTrips, rawVehicles, rawInvoices] = await Promise.all([
+        const [company, dashboard, rawProducts, stockItems, rawCustomers, rawPayments, rawTrips, rawVehicles, rawInvoices] = await Promise.all([
+          optionalLiveData(getCompanyProfile(token), defaultCompanyProfile),
           canReadOwnerDashboard ? optionalLiveData(getOwnerDashboard(token), null) : Promise.resolve(null),
           canReadProducts ? optionalLiveData(getProducts(token), []) : Promise.resolve([]),
           canReadInventory ? optionalLiveData(getWarehouseStock(token, MAIN_WAREHOUSE_ID), []) : Promise.resolve([]),
@@ -310,6 +367,16 @@ export default function Home() {
         );
 
         setOwnerDashboard(dashboard);
+        setCompanyProfile(company);
+        setCompanyForm({
+          name: company.name,
+          industry: company.industry,
+          logoUrl: company.logoUrl ?? "",
+          primaryColor: company.primaryColor,
+          secondaryColor: company.secondaryColor,
+          currency: company.currency,
+          defaultLocale: company.defaultLocale
+        });
         setUser(profile);
         setApiProducts(rawProducts);
         setApiCustomers(rawCustomers);
@@ -918,6 +985,36 @@ export default function Home() {
     );
   }
 
+  async function submitCompanyProfile(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (!accessToken) return;
+
+    await runAction(
+      async () => {
+        const updated = await updateCompanyProfile(accessToken, {
+          name: companyForm.name,
+          industry: companyForm.industry,
+          logoUrl: companyForm.logoUrl,
+          primaryColor: companyForm.primaryColor,
+          secondaryColor: companyForm.secondaryColor,
+          currency: companyForm.currency.trim().toUpperCase(),
+          defaultLocale: companyForm.defaultLocale
+        });
+        setCompanyProfile(updated);
+        setCompanyForm({
+          name: updated.name,
+          industry: updated.industry,
+          logoUrl: updated.logoUrl ?? "",
+          primaryColor: updated.primaryColor,
+          secondaryColor: updated.secondaryColor,
+          currency: updated.currency,
+          defaultLocale: updated.defaultLocale
+        });
+      },
+      t("companyProfileUpdated")
+    );
+  }
+
   async function submitCreateProduct(event?: FormEvent<HTMLFormElement>) {
     event?.preventDefault();
     if (!accessToken) return;
@@ -1040,11 +1137,13 @@ export default function Home() {
   }
 
   return (
-    <main className="app-shell">
+    <main className="app-shell" style={tenantTheme}>
       <DashboardSidebar
         activeSection={activeSection}
         appName={t("appName")}
-        business={t("business")}
+        brandMark={brandInitials}
+        business={companyProfile.name}
+        logoUrl={companyProfile.logoUrl}
         navItems={navItems}
         systemScope={t("systemScope")}
         onSectionChange={setActiveSection}
@@ -1636,10 +1735,105 @@ export default function Home() {
               </article>
               ) : null}
 
-              {activeSection === "settings" ? (
-              <section className="two-column">
-                {isAccountAdmin ? (
-                  <article className="panel">
+	              {activeSection === "settings" ? (
+	              <section className="two-column">
+	                {isAccountAdmin ? (
+	                  <article className="panel">
+	                    <div className="panel-header">
+	                      <div>
+	                        <h3>{t("companyProfile")}</h3>
+	                        <span>{t("companyProfileNote")}</span>
+	                      </div>
+	                      <Settings size={18} color="var(--brand)" aria-hidden="true" />
+	                    </div>
+	                    <div className="panel-body">
+	                      <form className="entry-form tight-form" onSubmit={submitCompanyProfile}>
+	                        <div className="form-grid">
+	                          <label>
+	                            <span>{t("companyName")}</span>
+	                            <input
+	                              required
+	                              value={companyForm.name}
+	                              onChange={(event) => setCompanyForm((current) => ({ ...current, name: event.target.value }))}
+	                            />
+	                          </label>
+	                          <label>
+	                            <span>{t("industry")}</span>
+	                            <input
+	                              required
+	                              value={companyForm.industry}
+	                              onChange={(event) => setCompanyForm((current) => ({ ...current, industry: event.target.value }))}
+	                            />
+	                          </label>
+	                          <label>
+	                            <span>{t("currency")}</span>
+	                            <input
+	                              maxLength={3}
+	                              required
+	                              value={companyForm.currency}
+	                              onChange={(event) =>
+	                                setCompanyForm((current) => ({ ...current, currency: event.target.value.toUpperCase() }))
+	                              }
+	                            />
+	                          </label>
+	                        </div>
+	                        <div className="form-grid">
+	                          <label>
+	                            <span>{t("primaryColor")}</span>
+	                            <input
+	                              type="color"
+	                              value={companyForm.primaryColor}
+	                              onChange={(event) =>
+	                                setCompanyForm((current) => ({ ...current, primaryColor: event.target.value }))
+	                              }
+	                            />
+	                          </label>
+	                          <label>
+	                            <span>{t("secondaryColor")}</span>
+	                            <input
+	                              type="color"
+	                              value={companyForm.secondaryColor}
+	                              onChange={(event) =>
+	                                setCompanyForm((current) => ({ ...current, secondaryColor: event.target.value }))
+	                              }
+	                            />
+	                          </label>
+	                          <label>
+	                            <span>{t("locale")}</span>
+	                            <select
+	                              value={companyForm.defaultLocale}
+	                              onChange={(event) =>
+	                                setCompanyForm((current) => ({ ...current, defaultLocale: event.target.value as Locale }))
+	                              }
+	                            >
+	                              {locales.map((entry) => (
+	                                <option key={entry.code} value={entry.code}>
+	                                  {entry.label}
+	                                </option>
+	                              ))}
+	                            </select>
+	                          </label>
+	                        </div>
+	                        <label>
+	                          <span>{t("logoUrl")}</span>
+	                          <input
+	                            placeholder="https://example.com/logo.png"
+	                            value={companyForm.logoUrl}
+	                            onChange={(event) => setCompanyForm((current) => ({ ...current, logoUrl: event.target.value }))}
+	                          />
+	                        </label>
+	                        <div className="modal-actions">
+	                          <button className="primary-button" disabled={isActionSubmitting} type="submit">
+	                            {isActionSubmitting ? t("saving") : t("saveCompanyProfile")}
+	                          </button>
+	                        </div>
+	                      </form>
+	                    </div>
+	                  </article>
+	                ) : null}
+
+	                {isAccountAdmin ? (
+	                  <article className="panel">
                 <div className="panel-header">
                   <div>
                     <h3>{t("teamAccess")}</h3>

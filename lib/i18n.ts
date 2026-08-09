@@ -167,7 +167,17 @@ export const dictionary = {
     addItem: "Add item",
     quantity: "Quantity",
     remove: "Remove",
-    allowNegativeStock: "Allow negative stock"
+    allowNegativeStock: "Allow negative stock",
+    companyProfile: "Company profile",
+    companyProfileNote: "Configure this distributor for another company or industry.",
+    companyName: "Company name",
+    industry: "Industry",
+    currency: "Currency",
+    primaryColor: "Primary color",
+    secondaryColor: "Accent color",
+    logoUrl: "Logo URL",
+    saveCompanyProfile: "Save company profile",
+    companyProfileUpdated: "Company profile updated."
   },
   fr: {
     appName: "Controle Distributeur",
@@ -328,7 +338,17 @@ export const dictionary = {
     addItem: "Ajouter",
     quantity: "Quantite",
     remove: "Retirer",
-    allowNegativeStock: "Autoriser le stock negatif"
+    allowNegativeStock: "Autoriser le stock negatif",
+    companyProfile: "Profil entreprise",
+    companyProfileNote: "Configurer ce distributeur pour une autre entreprise ou industrie.",
+    companyName: "Nom de l'entreprise",
+    industry: "Industrie",
+    currency: "Devise",
+    primaryColor: "Couleur principale",
+    secondaryColor: "Couleur d'accent",
+    logoUrl: "URL du logo",
+    saveCompanyProfile: "Enregistrer le profil",
+    companyProfileUpdated: "Profil entreprise mis a jour."
   },
   rw: {
     appName: "Igenzura ry'Umudandaza",
@@ -489,7 +509,17 @@ export const dictionary = {
     addItem: "Ongeraho",
     quantity: "Ingano",
     remove: "Kuraho",
-    allowNegativeStock: "Emerera stock kujya munsi ya zero"
+    allowNegativeStock: "Emerera stock kujya munsi ya zero",
+    companyProfile: "Umwirondoro w'ikigo",
+    companyProfileNote: "Hindura iyi sisitemu ijyane n'ikindi kigo cyangwa urwego.",
+    companyName: "Izina ry'ikigo",
+    industry: "Urwego",
+    currency: "Ifaranga",
+    primaryColor: "Ibara nyamukuru",
+    secondaryColor: "Ibara ry'inyongera",
+    logoUrl: "URL ya logo",
+    saveCompanyProfile: "Bika umwirondoro",
+    companyProfileUpdated: "Umwirondoro w'ikigo wavuguruwe."
   },
   sw: {
     appName: "Udhibiti wa Msambazaji",
@@ -650,7 +680,17 @@ export const dictionary = {
     addItem: "Ongeza",
     quantity: "Kiasi",
     remove: "Ondoa",
-    allowNegativeStock: "Ruhusu akiba kuwa hasi"
+    allowNegativeStock: "Ruhusu akiba kuwa hasi",
+    companyProfile: "Wasifu wa kampuni",
+    companyProfileNote: "Sanidi msambazaji huyu kwa kampuni au sekta nyingine.",
+    companyName: "Jina la kampuni",
+    industry: "Sekta",
+    currency: "Sarafu",
+    primaryColor: "Rangi kuu",
+    secondaryColor: "Rangi ya nyongeza",
+    logoUrl: "URL ya nembo",
+    saveCompanyProfile: "Hifadhi wasifu",
+    companyProfileUpdated: "Wasifu wa kampuni umesasishwa."
   }
 } satisfies Record<Locale, Record<string, string>>;
 

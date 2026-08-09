@@ -2,6 +2,7 @@ import { Module } from "@nestjs/common";
 import { ConfigModule } from "@nestjs/config";
 import { APP_GUARD } from "@nestjs/core";
 import { AuthModule } from "./auth/auth.module";
+import { CompaniesModule } from "./companies/companies.module";
 import { JwtAuthGuard } from "./auth/jwt-auth.guard";
 import { validateEnvironment } from "./config/validate-env";
 import { CustomersModule } from "./customers/customers.module";
@@ -24,6 +25,7 @@ import { UsersModule } from "./users/users.module";
       validate: validateEnvironment
     }),
     PrismaModule,
+    CompaniesModule,
     UsersModule,
     AuthModule,
     DashboardModule,

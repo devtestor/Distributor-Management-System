@@ -14,7 +14,7 @@
     "render:api:start": "npm run api:start",
     "render:web:build": "npm ci --include=dev && npm run build",
     "render:web:start": "npm run start",
-    "lint": "eslint app lib apps/api prisma --max-warnings=0",
+    "lint": "eslint app components lib apps/api prisma --max-warnings=0",
     "test": "TSX_TSCONFIG_PATH=apps/api/tsconfig.json node --import tsx --test \"apps/api/src/**/*.test.ts\"",
     "typecheck": "tsc --noEmit && tsc -p apps/api/tsconfig.json --noEmit",
     "prisma:generate": "prisma generate --schema prisma/schema.prisma",

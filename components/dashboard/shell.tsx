@@ -25,6 +25,8 @@ type DashboardSidebarProps = {
   activeSection: NavSection;
   appName: string;
   business: string;
+  brandMark: string;
+  logoUrl?: string | null;
   navItems: DashboardNavItem[];
   systemScope: string;
   onSectionChange: (section: NavSection) => void;
@@ -34,6 +36,8 @@ export function DashboardSidebar({
   activeSection,
   appName,
   business,
+  brandMark,
+  logoUrl,
   navItems,
   systemScope,
   onSectionChange
@@ -41,7 +45,14 @@ export function DashboardSidebar({
   return (
     <aside className="sidebar">
       <div className="brand">
-        <div className="brand-mark">DC</div>
+        <div
+          aria-label={logoUrl ? business : undefined}
+          className={`brand-mark ${logoUrl ? "with-logo" : ""}`}
+          role={logoUrl ? "img" : undefined}
+          style={logoUrl ? { backgroundImage: `url(${logoUrl})` } : undefined}
+        >
+          {logoUrl ? null : brandMark}
+        </div>
         <div>
           <h1>{appName}</h1>
           <p>{business}</p>

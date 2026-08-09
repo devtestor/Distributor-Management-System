@@ -7,11 +7,35 @@ const prisma = new PrismaClient();
 async function main() {
   const company = await prisma.company.upsert({
     where: { code: "BRALIRWA-DEMO" },
-    update: { name: "BRALIRWA Distributor" },
+    update: {
+      name: "BRALIRWA Distributor",
+      industry: "Beverage distribution",
+      primaryColor: "#0b6b50",
+      secondaryColor: "#f4c542",
+      currency: "RWF",
+      defaultLocale: "en",
+      featureFlags: {
+        emptiesTracking: true,
+        creditManagement: true,
+        deliveryRoutes: true,
+        invoicePayments: true
+      }
+    },
     create: {
       id: "00000000-0000-0000-0000-000000000010",
       name: "BRALIRWA Distributor",
-      code: "BRALIRWA-DEMO"
+      code: "BRALIRWA-DEMO",
+      industry: "Beverage distribution",
+      primaryColor: "#0b6b50",
+      secondaryColor: "#f4c542",
+      currency: "RWF",
+      defaultLocale: "en",
+      featureFlags: {
+        emptiesTracking: true,
+        creditManagement: true,
+        deliveryRoutes: true,
+        invoicePayments: true
+      }
     }
   });
 

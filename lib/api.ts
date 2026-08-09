@@ -11,6 +11,20 @@ export type ApiUser = {
   createdAt?: string;
 };
 
+export type ApiCompanyProfile = {
+  id: string;
+  name: string;
+  code: string;
+  industry: string;
+  logoUrl: string | null;
+  primaryColor: string;
+  secondaryColor: string;
+  currency: string;
+  defaultLocale: "en" | "fr" | "rw" | "sw";
+  featureFlags: Record<string, unknown> | null;
+  createdAt: string;
+};
+
 export type ApiRole = {
   id: string;
   name: string;
@@ -464,6 +478,31 @@ export function getWarehouseStock(accessToken: string, warehouseId: string) {
 export function getCustomers(accessToken: string) {
   return request<ApiCustomer[]>("/customers", {
     headers: authHeaders(accessToken)
+  });
+}
+
+export function getCompanyProfile(accessToken: string) {
+  return request<ApiCompanyProfile>("/company/profile", {
+    headers: authHeaders(accessToken)
+  });
+}
+
+export function updateCompanyProfile(
+  accessToken: string,
+  payload: {
+    name?: string;
+    industry?: string;
+    logoUrl?: string;
+    primaryColor?: string;
+    secondaryColor?: string;
+    currency?: string;
+    defaultLocale?: "en" | "fr" | "rw" | "sw";
+  }
+) {
+  return request<ApiCompanyProfile>("/company/profile", {
+    method: "PATCH",
+    headers: authHeaders(accessToken),
+    body: JSON.stringify(payload)
   });
 }
 

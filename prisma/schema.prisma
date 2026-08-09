@@ -79,6 +79,13 @@ model Company {
   id                      String                   @id @default(uuid())
   name                    String
   code                    String                   @unique
+  industry                String                   @default("Beverage distribution")
+  logoUrl                 String?
+  primaryColor            String                   @default("#0b6b50")
+  secondaryColor          String                   @default("#f4c542")
+  currency                String                   @default("RWF")
+  defaultLocale           Locale                   @default(en)
+  featureFlags            Json?
   createdAt               DateTime                 @default(now())
   users                   User[]
   products                Product[]
