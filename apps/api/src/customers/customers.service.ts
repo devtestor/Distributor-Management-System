@@ -8,22 +8,23 @@ import { CreateCustomerDto } from "./dto/create-customer.dto";
 export class CustomersService {
   constructor(@Inject(PrismaService) private readonly prisma: PrismaService) {}
 
-  list(query?: PaginationQuery) {
+  list(companyId: string, query?: PaginationQuery) {
     return this.prisma.customer.findMany({
+      where: { companyId },
       orderBy: { name: "asc" },
       ...paginationArgs(query)
     });
   }
 
-  create(dto: CreateCustomerDto) {
+  create(dto: CreateCustomerDto, companyId: string) {
     return this.prisma.customer.create({
-      data: dto
+      data: { ...dto, companyId }
     });
   }
 
-  async getBalance(customerId: string) {
+  async getBalance(customerId: string, companyId: string) {
     const customer = await this.prisma.customer.findUnique({
-      where: { id: customerId }
+      where: { id: customerId, companyId }
     });
 
     if (!customer) throw new NotFoundException("Customer not found");
@@ -32,16 +33,17 @@ export class CustomersService {
       this.prisma.invoice.aggregate({
         where: {
           customerId,
+          companyId,
           status: { not: InvoiceStatus.CANCELLED }
         },
         _sum: { totalAmount: true }
       }),
       this.prisma.payment.aggregate({
-        where: { customerId },
+        where: { customerId, companyId },
         _sum: { amount: true }
       }),
       this.prisma.emptyContainerMovement.findMany({
-        where: { customerId },
+        where: { customerId, companyId },
         select: { movementType: true, quantity: true }
       })
     ]);
@@ -61,9 +63,9 @@ export class CustomersService {
     };
   }
 
-  async getAccountHistory(customerId: string) {
+  async getAccountHistory(customerId: string, companyId: string) {
     const customer = await this.prisma.customer.findUnique({
-      where: { id: customerId }
+      where: { id: customerId, companyId }
     });
     if (!customer) throw new NotFoundException("Customer not found");
 
@@ -71,6 +73,7 @@ export class CustomersService {
       this.prisma.invoice.findMany({
         where: {
           customerId,
+          companyId,
           status: { not: InvoiceStatus.CANCELLED }
         },
         select: {
@@ -82,7 +85,7 @@ export class CustomersService {
         }
       }),
       this.prisma.payment.findMany({
-        where: { customerId },
+        where: { customerId, companyId },
         select: {
           id: true,
           invoiceId: true,
@@ -125,9 +128,10 @@ export class CustomersService {
     };
   }
 
-  async getDebtAging() {
+  async getDebtAging(companyId: string) {
     const invoices = await this.prisma.invoice.findMany({
       where: {
+        companyId,
         status: { not: InvoiceStatus.CANCELLED },
         paymentStatus: { not: "PAID" }
       },

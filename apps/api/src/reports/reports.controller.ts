@@ -1,4 +1,5 @@
-import { Controller, Get, Inject, Query } from "@nestjs/common";
+import { Controller, Get, Inject, Query, Req } from "@nestjs/common";
+import type { AuthenticatedRequest } from "../common/authenticated-request";
 import { Roles } from "../common/roles.decorator";
 import { ReportsService } from "./reports.service";
 
@@ -8,22 +9,22 @@ export class ReportsController {
   constructor(@Inject(ReportsService) private readonly reportsService: ReportsService) {}
 
   @Get("sales")
-  sales(@Query("from") from?: string, @Query("to") to?: string) {
-    return this.reportsService.sales({ from, to });
+  sales(@Query("from") from: string | undefined, @Query("to") to: string | undefined, @Req() request: AuthenticatedRequest) {
+    return this.reportsService.sales({ companyId: request.user.companyId, from, to });
   }
 
   @Get("stock")
-  stock() {
-    return this.reportsService.stock();
+  stock(@Req() request: AuthenticatedRequest) {
+    return this.reportsService.stock(request.user.companyId);
   }
 
   @Get("debt")
-  debt() {
-    return this.reportsService.debt();
+  debt(@Req() request: AuthenticatedRequest) {
+    return this.reportsService.debt(request.user.companyId);
   }
 
   @Get("empties")
-  empties() {
-    return this.reportsService.empties();
+  empties(@Req() request: AuthenticatedRequest) {
+    return this.reportsService.empties(request.user.companyId);
   }
 }

@@ -12,31 +12,31 @@ export class ProductsController {
 
   @Roles("OWNER", "ADMIN", "WAREHOUSE_MANAGER", "SALESPERSON")
   @Get()
-  list(@Query() query: PaginationQuery) {
-    return this.productsService.list(query);
+  list(@Query() query: PaginationQuery, @Req() request: AuthenticatedRequest) {
+    return this.productsService.list(request.user.companyId, query);
   }
 
   @Roles("OWNER", "ADMIN")
   @Post()
-  create(@Body() dto: CreateProductDto) {
-    return this.productsService.create(dto);
+  create(@Body() dto: CreateProductDto, @Req() request: AuthenticatedRequest) {
+    return this.productsService.create(dto, request.user.companyId);
   }
 
   @Get(":id/price-history")
   @Roles("OWNER", "ADMIN")
-  priceHistory(@Param("id") id: string) {
-    return this.productsService.priceHistory(id);
+  priceHistory(@Param("id") id: string, @Req() request: AuthenticatedRequest) {
+    return this.productsService.priceHistory(id, request.user.companyId);
   }
 
   @Roles("OWNER", "ADMIN")
   @Patch(":id")
   update(@Param("id") id: string, @Body() dto: UpdateProductDto, @Req() request: AuthenticatedRequest) {
-    return this.productsService.update(id, dto, request.user.id);
+    return this.productsService.update(id, dto, request.user.id, request.user.companyId);
   }
 
   @Roles("OWNER", "ADMIN")
   @Delete(":id")
   delete(@Param("id") id: string, @Req() request: AuthenticatedRequest) {
-    return this.productsService.delete(id, request.user.id);
+    return this.productsService.delete(id, request.user.id, request.user.companyId);
   }
 }

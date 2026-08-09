@@ -9,23 +9,26 @@ import { UpdateProductDto } from "./dto/update-product.dto";
 export class ProductsService {
   constructor(@Inject(PrismaService) private readonly prisma: PrismaService) {}
 
-  async list(query?: PaginationQuery) {
+  async list(companyId: string, query?: PaginationQuery) {
     return this.prisma.product.findMany({
+      where: { companyId },
       orderBy: { name: "asc" },
       ...paginationArgs(query)
     });
   }
 
-  async create(dto: CreateProductDto) {
+  async create(dto: CreateProductDto, companyId: string) {
     try {
       return await this.prisma.product.create({
         data: {
+          companyId,
           ...dto,
           unitCost: dto.unitCost,
           unitPrice: dto.unitPrice,
           tracksEmpties: dto.tracksEmpties ?? false,
           priceHistory: {
             create: {
+              companyId,
               newCost: dto.unitCost,
               newPrice: dto.unitPrice,
               changeReason: "Initial product price"
@@ -47,9 +50,9 @@ export class ProductsService {
     }
   }
 
-  async update(id: string, dto: UpdateProductDto, actorUserId: string) {
+  async update(id: string, dto: UpdateProductDto, actorUserId: string, companyId: string) {
     const product = await this.prisma.product.findUnique({
-      where: { id }
+      where: { id, companyId }
     });
     if (!product) throw new NotFoundException("Product not found");
 
@@ -61,7 +64,7 @@ export class ProductsService {
     try {
       return await this.prisma.$transaction(async (tx) => {
         const updated = await tx.product.update({
-          where: { id },
+          where: { id, companyId },
           data: productData,
           include: {
             priceHistory: {
@@ -75,6 +78,7 @@ export class ProductsService {
           await tx.productPriceHistory.create({
             data: {
               productId: product.id,
+              companyId,
               previousCost: product.unitCost,
               newCost: nextUnitCost,
               previousPrice: product.unitPrice,
@@ -88,6 +92,7 @@ export class ProductsService {
         await tx.auditLog.create({
           data: {
             userId: actorUserId,
+            companyId,
             action: priceChanged ? "PRODUCT_PRICE_UPDATED" : "PRODUCT_UPDATED",
             entity: "Product",
             entityId: product.id,
@@ -109,9 +114,9 @@ export class ProductsService {
     }
   }
 
-  priceHistory(productId: string) {
+  priceHistory(productId: string, companyId: string) {
     return this.prisma.productPriceHistory.findMany({
-      where: { productId },
+      where: { productId, companyId },
       include: {
         changedBy: {
           include: { role: true }
@@ -122,9 +127,9 @@ export class ProductsService {
     });
   }
 
-  async delete(id: string, actorUserId: string) {
+  async delete(id: string, actorUserId: string, companyId: string) {
     const product = await this.prisma.product.findUnique({
-      where: { id },
+      where: { id, companyId },
       include: {
         _count: {
           select: {
@@ -149,16 +154,17 @@ export class ProductsService {
 
     await this.prisma.$transaction(async (tx) => {
       await tx.productPriceHistory.deleteMany({
-        where: { productId: id }
+        where: { productId: id, companyId }
       });
 
       await tx.product.delete({
-        where: { id }
+        where: { id, companyId }
       });
 
       await tx.auditLog.create({
         data: {
           userId: actorUserId,
+          companyId,
           action: "PRODUCT_DELETED",
           entity: "Product",
           entityId: product.id,

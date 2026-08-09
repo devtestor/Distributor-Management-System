@@ -7,6 +7,7 @@ import { ROLES_KEY } from "../common/roles.decorator";
 
 type JwtPayload = {
   sub: string;
+  companyId: string;
   email: string | null;
   role: string;
 };
@@ -61,6 +62,7 @@ export class JwtAuthGuard implements CanActivate {
 
     request.user = {
       id: user.id,
+      companyId: user.companyId,
       email: user.email,
       role: user.role.name
     };

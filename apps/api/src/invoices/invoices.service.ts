@@ -17,17 +17,18 @@ type InvoiceTransaction = Prisma.TransactionClient;
 export class InvoicesService {
   constructor(@Inject(PrismaService) private readonly prisma: PrismaService) {}
 
-  list(query?: PaginationQuery) {
+  list(companyId: string, query?: PaginationQuery) {
     return this.prisma.invoice.findMany({
+      where: { companyId },
       include: { customer: true, items: { include: { product: true } }, payments: true },
       orderBy: { createdAt: "desc" },
       ...paginationArgs(query)
     });
   }
 
-  async get(id: string) {
+  async get(id: string, companyId: string) {
     const invoice = await this.prisma.invoice.findUnique({
-      where: { id },
+      where: { id, companyId },
       include: { customer: true, items: { include: { product: true } }, payments: true }
     });
 
@@ -35,16 +36,16 @@ export class InvoicesService {
     return invoice;
   }
 
-  async create(dto: CreateInvoiceDto, createdById: string, actorRole: string) {
+  async create(dto: CreateInvoiceDto, createdById: string, actorRole: string, companyId: string) {
     if ((dto.initialPaymentMethod === PaymentMethod.BANK || dto.initialPaymentMethod === PaymentMethod.MOBILE_MONEY) && !dto.paymentReference) {
       throw new BadRequestException("Payment reference is required for bank and mobile money payments");
     }
 
-    const customer = await this.prisma.customer.findUnique({ where: { id: dto.customerId } });
+    const customer = await this.prisma.customer.findUnique({ where: { id: dto.customerId, companyId } });
     if (!customer) throw new NotFoundException("Customer not found");
 
     const products = await this.prisma.product.findMany({
-      where: { id: { in: dto.items.map((item) => item.productId) } }
+      where: { id: { in: dto.items.map((item) => item.productId) }, companyId }
     });
     const productById = new Map(products.map((product) => [product.id, product]));
 
@@ -76,6 +77,7 @@ export class InvoicesService {
 
     await this.assertCreditLimitCanApply({
       customerId: dto.customerId,
+      companyId,
       creditAmount: totalAmount - initialPaymentAmount,
       creditLimit: Number(customer.creditLimit),
       allowCreditLimitOverride: dto.allowCreditLimitOverride,
@@ -88,7 +90,7 @@ export class InvoicesService {
     return this.prisma.$transaction(async (tx) => {
       const warehouseId = dto.warehouseId ?? mainWarehouseId;
       const warehouse = await tx.warehouse.findUnique({
-        where: { id: warehouseId },
+        where: { id: warehouseId, companyId },
         select: { id: true }
       });
       if (!warehouse) throw new NotFoundException("Warehouse not found");
@@ -96,6 +98,7 @@ export class InvoicesService {
       for (const item of invoiceItems) {
         await this.assertStockCanApply({
           productId: item.productId,
+          companyId,
           warehouseId,
           quantity: item.quantity,
           allowNegativeStock: dto.allowNegativeStock,
@@ -104,11 +107,12 @@ export class InvoicesService {
         });
       }
 
-      const invoiceNumber = await this.nextInvoiceNumber(tx);
+      const invoiceNumber = await this.nextInvoiceNumber(tx, companyId);
 
       const invoice = await tx.invoice.create({
         data: {
           customerId: dto.customerId,
+          companyId,
           invoiceNumber,
           status: InvoiceStatus.ISSUED,
           paymentStatus,
@@ -120,6 +124,7 @@ export class InvoicesService {
               ? {
                   create: {
                     customerId: dto.customerId,
+                    companyId,
                     method: dto.initialPaymentMethod,
                     amount: initialPaymentAmount,
                     reference: dto.paymentReference,
@@ -134,6 +139,7 @@ export class InvoicesService {
       await tx.stockMovement.createMany({
         data: invoiceItems.map((item) => ({
           productId: item.productId,
+          companyId,
           warehouseId,
           movementType: StockMovementType.SALE_ISSUE,
           quantity: item.quantity,
@@ -148,6 +154,7 @@ export class InvoicesService {
       await tx.auditLog.create({
         data: {
           userId: createdById,
+          companyId,
           action: "CREATE",
           entity: "Invoice",
           entityId: invoice.id,
@@ -165,11 +172,11 @@ export class InvoicesService {
     });
   }
 
-  private async nextInvoiceNumber(tx: InvoiceTransaction) {
+  private async nextInvoiceNumber(tx: InvoiceTransaction, companyId: string) {
     const sequence = await tx.invoiceSequence.upsert({
-      where: { id: "global" },
+      where: { companyId },
       update: { lastNumber: { increment: 1 } },
-      create: { id: "global", lastNumber: 1 },
+      create: { id: companyId, companyId, lastNumber: 1 },
       select: { lastNumber: true }
     });
 
@@ -178,6 +185,7 @@ export class InvoicesService {
 
   private async assertCreditLimitCanApply(input: {
     customerId: string;
+    companyId: string;
     creditAmount: number;
     creditLimit: number;
     allowCreditLimitOverride?: boolean;
@@ -189,12 +197,13 @@ export class InvoicesService {
       this.prisma.invoice.aggregate({
         where: {
           customerId: input.customerId,
+          companyId: input.companyId,
           status: { not: InvoiceStatus.CANCELLED }
         },
         _sum: { totalAmount: true }
       }),
       this.prisma.payment.aggregate({
-        where: { customerId: input.customerId },
+        where: { customerId: input.customerId, companyId: input.companyId },
         _sum: { amount: true }
       })
     ]);
@@ -215,13 +224,14 @@ export class InvoicesService {
 
   private async assertStockCanApply(input: {
     productId: string;
+    companyId: string;
     warehouseId: string;
     quantity: number;
     allowNegativeStock?: boolean;
     actorRole: string;
     tx: InvoiceTransaction;
   }) {
-    const currentStock = await this.getProductWarehouseBalance(input.productId, input.warehouseId, input.tx);
+    const currentStock = await this.getProductWarehouseBalance(input.productId, input.warehouseId, input.companyId, input.tx);
     if (currentStock - input.quantity >= 0) return;
 
     if (input.allowNegativeStock && (input.actorRole === "OWNER" || input.actorRole === "ADMIN")) {
@@ -235,9 +245,9 @@ export class InvoicesService {
     throw new BadRequestException("Invoice would make inventory negative");
   }
 
-  private async getProductWarehouseBalance(productId: string, warehouseId: string, tx: InvoiceTransaction) {
+  private async getProductWarehouseBalance(productId: string, warehouseId: string, companyId: string, tx: InvoiceTransaction) {
     const movements = await tx.stockMovement.findMany({
-      where: { productId, warehouseId },
+      where: { productId, warehouseId, companyId },
       select: { movementType: true, quantity: true }
     });
 

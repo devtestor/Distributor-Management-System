@@ -75,6 +75,27 @@ enum DeliveryStatus {
   CANCELLED
 }
 
+model Company {
+  id                      String                   @id @default(uuid())
+  name                    String
+  code                    String                   @unique
+  createdAt               DateTime                 @default(now())
+  users                   User[]
+  products                Product[]
+  productPriceHistory     ProductPriceHistory[]
+  warehouses              Warehouse[]
+  customers               Customer[]
+  stockMovements          StockMovement[]
+  invoices                Invoice[]
+  payments                Payment[]
+  emptyContainerMovements EmptyContainerMovement[]
+  vehicles                Vehicle[]
+  deliveryTrips           DeliveryTrip[]
+  expenses                Expense[]
+  auditLogs               AuditLog[]
+  invoiceSequences        InvoiceSequence[]
+}
+
 model Role {
   id          String   @id @default(uuid())
   name        String   @unique
@@ -85,6 +106,8 @@ model Role {
 
 model User {
   id                      String                   @id @default(uuid())
+  companyId               String
+  company                 Company                  @relation(fields: [companyId], references: [id])
   roleId                  String
   role                    Role                     @relation(fields: [roleId], references: [id])
   fullName                String
@@ -104,12 +127,15 @@ model User {
   auditLogs               AuditLog[]
   productPriceHistory     ProductPriceHistory[]
 
+  @@index([companyId])
   @@index([roleId])
 }
 
 model Product {
   id                      String                   @id @default(uuid())
-  sku                     String                   @unique
+  companyId               String
+  company                 Company                  @relation(fields: [companyId], references: [id])
+  sku                     String
   name                    String
   brand                   String
   category                ProductCategory
@@ -127,12 +153,16 @@ model Product {
   deliveryTripItems       DeliveryTripItem[]
   priceHistory            ProductPriceHistory[]
 
+  @@index([companyId])
   @@index([category])
   @@index([isActive])
+  @@unique([companyId, sku])
 }
 
 model ProductPriceHistory {
   id            String   @id @default(uuid())
+  companyId     String
+  company       Company  @relation(fields: [companyId], references: [id])
   productId     String
   product       Product  @relation(fields: [productId], references: [id])
   previousCost  Decimal? @db.Decimal(14, 2)
@@ -144,6 +174,7 @@ model ProductPriceHistory {
   changeReason  String?
   createdAt     DateTime @default(now())
 
+  @@index([companyId])
   @@index([productId])
   @@index([changedById])
   @@index([createdAt])
@@ -151,15 +182,21 @@ model ProductPriceHistory {
 
 model Warehouse {
   id             String          @id @default(uuid())
+  companyId      String
+  company        Company         @relation(fields: [companyId], references: [id])
   name           String
   location       String?
   isActive       Boolean         @default(true)
   createdAt      DateTime        @default(now())
   stockMovements StockMovement[]
+
+  @@index([companyId])
 }
 
 model Customer {
   id                      String                   @id @default(uuid())
+  companyId               String
+  company                 Company                  @relation(fields: [companyId], references: [id])
   name                    String
   phone                   String?
   route                   String?
@@ -171,12 +208,15 @@ model Customer {
   payments                Payment[]
   emptyContainerMovements EmptyContainerMovement[]
 
+  @@index([companyId])
   @@index([route])
   @@index([isActive])
 }
 
 model StockMovement {
   id            String            @id @default(uuid())
+  companyId     String
+  company       Company           @relation(fields: [companyId], references: [id])
   productId     String
   product       Product           @relation(fields: [productId], references: [id])
   warehouseId   String
@@ -191,6 +231,7 @@ model StockMovement {
   createdBy     User              @relation(fields: [createdById], references: [id])
   createdAt     DateTime          @default(now())
 
+  @@index([companyId])
   @@index([productId])
   @@index([warehouseId])
   @@index([movementType])
@@ -199,9 +240,11 @@ model StockMovement {
 
 model Invoice {
   id            String        @id @default(uuid())
+  companyId     String
+  company       Company       @relation(fields: [companyId], references: [id])
   customerId    String
   customer      Customer      @relation(fields: [customerId], references: [id])
-  invoiceNumber String        @unique
+  invoiceNumber String
   status        InvoiceStatus @default(DRAFT)
   paymentStatus PaymentStatus @default(UNPAID)
   totalAmount   Decimal       @db.Decimal(14, 2)
@@ -211,13 +254,17 @@ model Invoice {
   items         InvoiceItem[]
   payments      Payment[]
 
+  @@index([companyId])
   @@index([customerId])
   @@index([createdAt])
   @@index([paymentStatus])
+  @@unique([companyId, invoiceNumber])
 }
 
 model InvoiceSequence {
   id         String   @id
+  companyId  String   @unique
+  company    Company  @relation(fields: [companyId], references: [id])
   lastNumber Int      @default(0)
   updatedAt  DateTime @updatedAt
 }
@@ -239,6 +286,8 @@ model InvoiceItem {
 
 model Payment {
   id           String        @id @default(uuid())
+  companyId    String
+  company      Company       @relation(fields: [companyId], references: [id])
   customerId   String
   customer     Customer      @relation(fields: [customerId], references: [id])
   invoiceId    String?
@@ -250,6 +299,7 @@ model Payment {
   receivedBy   User          @relation(fields: [receivedById], references: [id])
   receivedAt   DateTime      @default(now())
 
+  @@index([companyId])
   @@index([customerId])
   @@index([invoiceId])
   @@index([receivedAt])
@@ -257,6 +307,8 @@ model Payment {
 
 model EmptyContainerMovement {
   id            String            @id @default(uuid())
+  companyId     String
+  company       Company           @relation(fields: [companyId], references: [id])
   customerId    String
   customer      Customer          @relation(fields: [customerId], references: [id])
   productId     String?
@@ -269,6 +321,7 @@ model EmptyContainerMovement {
   createdBy     User              @relation(fields: [createdById], references: [id])
   createdAt     DateTime          @default(now())
 
+  @@index([companyId])
   @@index([customerId])
   @@index([productId])
   @@index([createdAt])
@@ -276,15 +329,22 @@ model EmptyContainerMovement {
 
 model Vehicle {
   id          String         @id @default(uuid())
-  plateNumber String         @unique
+  companyId   String
+  company     Company        @relation(fields: [companyId], references: [id])
+  plateNumber String
   driverId    String?
   driver      User?          @relation("VehicleDriver", fields: [driverId], references: [id])
   isActive    Boolean        @default(true)
   trips       DeliveryTrip[]
+
+  @@index([companyId])
+  @@unique([companyId, plateNumber])
 }
 
 model DeliveryTrip {
   id            String             @id @default(uuid())
+  companyId     String
+  company       Company            @relation(fields: [companyId], references: [id])
   vehicleId     String
   vehicle       Vehicle            @relation(fields: [vehicleId], references: [id])
   driverId      String
@@ -298,6 +358,7 @@ model DeliveryTrip {
   createdAt     DateTime           @default(now())
   items         DeliveryTripItem[]
 
+  @@index([companyId])
   @@index([driverId])
   @@index([status])
   @@index([createdAt])
@@ -320,6 +381,8 @@ model DeliveryTripItem {
 
 model Expense {
   id        String   @id @default(uuid())
+  companyId String
+  company   Company  @relation(fields: [companyId], references: [id])
   category  String
   amount    Decimal  @db.Decimal(14, 2)
   note      String?
@@ -327,12 +390,15 @@ model Expense {
   spentBy   User?    @relation(fields: [spentById], references: [id])
   spentAt   DateTime @default(now())
 
+  @@index([companyId])
   @@index([category])
   @@index([spentAt])
 }
 
 model AuditLog {
   id        String   @id @default(uuid())
+  companyId String
+  company   Company  @relation(fields: [companyId], references: [id])
   userId    String?
   user      User?    @relation(fields: [userId], references: [id])
   action    String
@@ -341,6 +407,7 @@ model AuditLog {
   metadata  Json?
   createdAt DateTime @default(now())
 
+  @@index([companyId])
   @@index([userId])
   @@index([entity])
   @@index([createdAt])

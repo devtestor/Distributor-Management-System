@@ -13,24 +13,24 @@ export class DeliveriesController {
   @Roles("OWNER", "ADMIN", "WAREHOUSE_MANAGER", "DRIVER")
   @Get()
   list(@Req() request: AuthenticatedRequest, @Query() query: PaginationQuery) {
-    return this.deliveriesService.list(request.user.id, request.user.role, query);
+    return this.deliveriesService.list(request.user.id, request.user.role, request.user.companyId, query);
   }
 
   @Roles("OWNER", "ADMIN", "WAREHOUSE_MANAGER")
   @Get("vehicles")
-  vehicles() {
-    return this.deliveriesService.listVehicles();
+  vehicles(@Req() request: AuthenticatedRequest) {
+    return this.deliveriesService.listVehicles(request.user.companyId);
   }
 
   @Roles("OWNER", "ADMIN", "WAREHOUSE_MANAGER")
   @Post()
   create(@Body() dto: CreateDeliveryTripDto, @Req() request: AuthenticatedRequest) {
-    return this.deliveriesService.create(dto, request.user.id, request.user.role);
+    return this.deliveriesService.create(dto, request.user.id, request.user.role, request.user.companyId);
   }
 
   @Roles("OWNER", "ADMIN", "WAREHOUSE_MANAGER", "DRIVER")
   @Post(":id/reconcile")
   reconcile(@Param("id") id: string, @Body() dto: ReconcileDeliveryTripDto, @Req() request: AuthenticatedRequest) {
-    return this.deliveriesService.reconcile(id, dto, request.user.id);
+    return this.deliveriesService.reconcile(id, dto, request.user.id, request.user.companyId);
   }
 }

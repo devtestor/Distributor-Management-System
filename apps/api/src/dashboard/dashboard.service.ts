@@ -12,31 +12,35 @@ const inboundStock = new Set<StockMovementType>([
 export class DashboardService {
   constructor(@Inject(PrismaService) private readonly prisma: PrismaService) {}
 
-  async getOwnerDashboard() {
+  async getOwnerDashboard(companyId: string) {
     const [products, invoices, payments, customers, emptyMovements, activeDeliveries] = await Promise.all([
       this.prisma.product.findMany({
-        where: { isActive: true },
+        where: { companyId, isActive: true },
         include: {
           stockMovements: {
+            where: { companyId },
             select: { movementType: true, quantity: true }
           }
         }
       }),
       this.prisma.invoice.aggregate({
-        where: { status: { not: InvoiceStatus.CANCELLED } },
+        where: { companyId, status: { not: InvoiceStatus.CANCELLED } },
         _sum: { totalAmount: true }
       }),
       this.prisma.payment.aggregate({
+        where: { companyId },
         _sum: { amount: true }
       }),
       this.prisma.customer.count({
-        where: { isActive: true }
+        where: { companyId, isActive: true }
       }),
       this.prisma.emptyContainerMovement.findMany({
+        where: { companyId },
         select: { movementType: true, quantity: true }
       }),
       this.prisma.deliveryTrip.count({
         where: {
+          companyId,
           status: {
             in: [DeliveryStatus.LOADING, DeliveryStatus.ON_ROUTE, DeliveryStatus.RECONCILIATION]
           }

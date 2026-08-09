@@ -11,19 +11,19 @@ export class InvoicesController {
 
   @Roles("OWNER", "ADMIN", "ACCOUNTANT", "SALESPERSON")
   @Get()
-  list(@Query() query: PaginationQuery) {
-    return this.invoicesService.list(query);
+  list(@Query() query: PaginationQuery, @Req() request: AuthenticatedRequest) {
+    return this.invoicesService.list(request.user.companyId, query);
   }
 
   @Roles("OWNER", "ADMIN", "ACCOUNTANT", "SALESPERSON")
   @Get(":id")
-  get(@Param("id") id: string) {
-    return this.invoicesService.get(id);
+  get(@Param("id") id: string, @Req() request: AuthenticatedRequest) {
+    return this.invoicesService.get(id, request.user.companyId);
   }
 
   @Roles("OWNER", "ADMIN", "ACCOUNTANT", "SALESPERSON")
   @Post()
   create(@Body() dto: CreateInvoiceDto, @Req() request: AuthenticatedRequest) {
-    return this.invoicesService.create(dto, request.user.id, request.user.role);
+    return this.invoicesService.create(dto, request.user.id, request.user.role, request.user.companyId);
   }
 }

@@ -11,13 +11,13 @@ export class PaymentsController {
 
   @Roles("OWNER", "ADMIN", "ACCOUNTANT", "SALESPERSON")
   @Get()
-  list(@Query() query: PaginationQuery) {
-    return this.paymentsService.list(query);
+  list(@Query() query: PaginationQuery, @Req() request: AuthenticatedRequest) {
+    return this.paymentsService.list(request.user.companyId, query);
   }
 
   @Roles("OWNER", "ADMIN", "ACCOUNTANT", "SALESPERSON")
   @Post()
   create(@Body() dto: CreatePaymentDto, @Req() request: AuthenticatedRequest) {
-    return this.paymentsService.create(dto, request.user.id);
+    return this.paymentsService.create(dto, request.user.id, request.user.companyId);
   }
 }

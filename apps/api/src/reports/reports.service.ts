@@ -12,10 +12,11 @@ const inboundStock = new Set<StockMovementType>([
 export class ReportsService {
   constructor(@Inject(PrismaService) private readonly prisma: PrismaService) {}
 
-  async sales(input: { from?: string; to?: string }) {
+  async sales(input: { companyId: string; from?: string; to?: string }) {
     const dateRange = this.dateRange(input.from, input.to);
     const invoices = await this.prisma.invoice.findMany({
       where: {
+        companyId: input.companyId,
         status: { not: InvoiceStatus.CANCELLED },
         createdAt: dateRange
       },
@@ -81,10 +82,12 @@ export class ReportsService {
     };
   }
 
-  async stock() {
+  async stock(companyId: string) {
     const products = await this.prisma.product.findMany({
+      where: { companyId },
       include: {
         stockMovements: {
+          where: { companyId },
           include: { warehouse: true }
         }
       },
@@ -120,9 +123,10 @@ export class ReportsService {
     };
   }
 
-  async debt() {
+  async debt(companyId: string) {
     const invoices = await this.prisma.invoice.findMany({
       where: {
+        companyId,
         status: { not: InvoiceStatus.CANCELLED },
         paymentStatus: { not: PaymentStatus.PAID }
       },
@@ -164,10 +168,12 @@ export class ReportsService {
     };
   }
 
-  async empties() {
+  async empties(companyId: string) {
     const customers = await this.prisma.customer.findMany({
+      where: { companyId },
       include: {
         emptyContainerMovements: {
+          where: { companyId },
           include: { product: true }
         }
       },

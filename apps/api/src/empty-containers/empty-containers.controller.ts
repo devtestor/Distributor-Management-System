@@ -9,13 +9,13 @@ export class EmptyContainersController {
   constructor(@Inject(EmptyContainersService) private readonly emptyContainersService: EmptyContainersService) {}
 
   @Get("customers/:customerId")
-  customerLedger(@Param("customerId") customerId: string) {
-    return this.emptyContainersService.customerLedger(customerId);
+  customerLedger(@Param("customerId") customerId: string, @Req() request: AuthenticatedRequest) {
+    return this.emptyContainersService.customerLedger(customerId, request.user.companyId);
   }
 
   @Roles("OWNER", "ADMIN", "WAREHOUSE_MANAGER", "DRIVER", "SALESPERSON")
   @Post("movements")
   createMovement(@Body() dto: CreateEmptyContainerMovementDto, @Req() request: AuthenticatedRequest) {
-    return this.emptyContainersService.createMovement(dto, request.user.id);
+    return this.emptyContainersService.createMovement(dto, request.user.id, request.user.companyId);
   }
 }

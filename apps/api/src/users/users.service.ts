@@ -18,8 +18,9 @@ export class UsersService {
     });
   }
 
-  listAuditLogs(query?: PaginationQuery) {
+  listAuditLogs(companyId: string, query?: PaginationQuery) {
     return this.prisma.auditLog.findMany({
+      where: { companyId },
       include: {
         user: {
           include: { role: true }
@@ -30,8 +31,9 @@ export class UsersService {
     });
   }
 
-  async listUsers(query?: PaginationQuery) {
+  async listUsers(companyId: string, query?: PaginationQuery) {
     const users = await this.prisma.user.findMany({
+      where: { companyId },
       include: { role: true },
       orderBy: { createdAt: "asc" },
       ...paginationArgs(query)
@@ -49,16 +51,18 @@ export class UsersService {
     }));
   }
 
-  async getProfile(userId: string) {
+  async getProfile(userId: string, companyId: string) {
     const user = await this.prisma.user.findUnique({
-      where: { id: userId },
-      include: { role: true }
+      where: { id: userId, companyId },
+      include: { role: true, company: true }
     });
 
     if (!user) throw new NotFoundException("User not found");
 
     return {
       id: user.id,
+      companyId: user.companyId,
+      companyName: user.company.name,
       fullName: user.fullName,
       email: user.email,
       phone: user.phone,
@@ -67,7 +71,7 @@ export class UsersService {
     };
   }
 
-  async createUser(dto: CreateUserDto, actorUserId: string, actorRole: string) {
+  async createUser(dto: CreateUserDto, actorUserId: string, actorRole: string, companyId: string) {
     const role = await this.prisma.role.findUnique({
       where: { name: dto.role }
     });
@@ -84,6 +88,7 @@ export class UsersService {
     const user = await this.prisma.user.create({
       data: {
         roleId: role.id,
+        companyId,
         fullName: dto.fullName,
         email: dto.email,
         phone: dto.phone,
@@ -93,7 +98,7 @@ export class UsersService {
       include: { role: true }
     });
 
-    await this.createAuditLog(actorUserId, "USER_CREATED", "User", user.id, {
+    await this.createAuditLog(actorUserId, companyId, "USER_CREATED", "User", user.id, {
       email: user.email,
       role: user.role.name
     });
@@ -111,9 +116,9 @@ export class UsersService {
     };
   }
 
-  async updateUser(userId: string, dto: UpdateUserDto, actorUserId: string, actorRole: string) {
+  async updateUser(userId: string, dto: UpdateUserDto, actorUserId: string, actorRole: string, companyId: string) {
     const user = await this.prisma.user.findUnique({
-      where: { id: userId },
+      where: { id: userId, companyId },
       include: { role: true }
     });
     if (!user) throw new NotFoundException("User not found");
@@ -126,7 +131,7 @@ export class UsersService {
       if (userId === actorUserId) {
         throw new BadRequestException("You cannot deactivate your own account");
       }
-      await this.assertLastActiveOwner(userId, user.role.name);
+      await this.assertLastActiveOwner(userId, user.role.name, companyId);
     }
 
     let roleId = user.roleId;
@@ -139,7 +144,7 @@ export class UsersService {
     }
 
     const updated = await this.prisma.user.update({
-      where: { id: userId },
+      where: { id: userId, companyId },
       data: {
         fullName: dto.fullName,
         phone: dto.phone,
@@ -150,7 +155,7 @@ export class UsersService {
       include: { role: true }
     });
 
-    await this.createAuditLog(actorUserId, "USER_UPDATED", "User", updated.id, {
+    await this.createAuditLog(actorUserId, companyId, "USER_UPDATED", "User", updated.id, {
       role: updated.role.name,
       isActive: updated.isActive
     });
@@ -167,9 +172,9 @@ export class UsersService {
     };
   }
 
-  async resetPassword(userId: string, dto: ResetPasswordDto, actorUserId: string, actorRole: string) {
+  async resetPassword(userId: string, dto: ResetPasswordDto, actorUserId: string, actorRole: string, companyId: string) {
     const user = await this.prisma.user.findUnique({
-      where: { id: userId },
+      where: { id: userId, companyId },
       include: { role: true }
     });
     if (!user) throw new NotFoundException("User not found");
@@ -178,11 +183,11 @@ export class UsersService {
 
     const passwordHash = await bcrypt.hash(dto.newPassword, 12);
     await this.prisma.user.update({
-      where: { id: userId },
+      where: { id: userId, companyId },
       data: { passwordHash }
     });
 
-    await this.createAuditLog(actorUserId, "USER_PASSWORD_RESET", "User", user.id, {
+    await this.createAuditLog(actorUserId, companyId, "USER_PASSWORD_RESET", "User", user.id, {
       role: user.role.name
     });
 
@@ -192,9 +197,9 @@ export class UsersService {
     };
   }
 
-  async deleteUser(userId: string, actorUserId: string, actorRole: string) {
+  async deleteUser(userId: string, actorUserId: string, actorRole: string, companyId: string) {
     const user = await this.prisma.user.findUnique({
-      where: { id: userId },
+      where: { id: userId, companyId },
       include: { role: true }
     });
     if (!user) throw new NotFoundException("User not found");
@@ -206,19 +211,19 @@ export class UsersService {
     this.assertOwnerOnly(actorRole, user.role.name);
 
     if (user.isActive) {
-      await this.assertLastActiveOwner(userId, user.role.name);
+      await this.assertLastActiveOwner(userId, user.role.name, companyId);
     }
 
-    const relatedRecords = await this.countUserBusinessRecords(userId);
+    const relatedRecords = await this.countUserBusinessRecords(userId, companyId);
     if (relatedRecords > 0) {
       throw new BadRequestException("This account has business or audit records. Deactivate it instead.");
     }
 
     await this.prisma.user.delete({
-      where: { id: userId }
+      where: { id: userId, companyId }
     });
 
-    await this.createAuditLog(actorUserId, "USER_DELETED", "User", user.id, {
+    await this.createAuditLog(actorUserId, companyId, "USER_DELETED", "User", user.id, {
       email: user.email,
       role: user.role.name
     });
@@ -229,9 +234,9 @@ export class UsersService {
     };
   }
 
-  async changePassword(userId: string, dto: ChangePasswordDto) {
+  async changePassword(userId: string, companyId: string, dto: ChangePasswordDto) {
     const user = await this.prisma.user.findUnique({
-      where: { id: userId }
+      where: { id: userId, companyId }
     });
     if (!user) throw new NotFoundException("User not found");
 
@@ -240,11 +245,11 @@ export class UsersService {
 
     const passwordHash = await bcrypt.hash(dto.newPassword, 12);
     await this.prisma.user.update({
-      where: { id: userId },
+      where: { id: userId, companyId },
       data: { passwordHash }
     });
 
-    await this.createAuditLog(userId, "MY_PASSWORD_CHANGED", "User", user.id, null);
+    await this.createAuditLog(userId, companyId, "MY_PASSWORD_CHANGED", "User", user.id, null);
 
     return {
       id: user.id,
@@ -258,12 +263,13 @@ export class UsersService {
     }
   }
 
-  private async assertLastActiveOwner(userId: string, currentRole: string) {
+  private async assertLastActiveOwner(userId: string, currentRole: string, companyId: string) {
     if (currentRole !== "OWNER") return;
 
     const activeOwners = await this.prisma.user.count({
       where: {
         isActive: true,
+        companyId,
         role: { name: "OWNER" }
       }
     });
@@ -273,17 +279,17 @@ export class UsersService {
     }
   }
 
-  private async countUserBusinessRecords(userId: string) {
+  private async countUserBusinessRecords(userId: string, companyId: string) {
     const counts = await Promise.all([
-      this.prisma.stockMovement.count({ where: { createdById: userId } }),
-      this.prisma.invoice.count({ where: { createdById: userId } }),
-      this.prisma.payment.count({ where: { receivedById: userId } }),
-      this.prisma.emptyContainerMovement.count({ where: { createdById: userId } }),
-      this.prisma.vehicle.count({ where: { driverId: userId } }),
-      this.prisma.deliveryTrip.count({ where: { driverId: userId } }),
-      this.prisma.expense.count({ where: { spentById: userId } }),
-      this.prisma.auditLog.count({ where: { userId } }),
-      this.prisma.productPriceHistory.count({ where: { changedById: userId } })
+      this.prisma.stockMovement.count({ where: { createdById: userId, companyId } }),
+      this.prisma.invoice.count({ where: { createdById: userId, companyId } }),
+      this.prisma.payment.count({ where: { receivedById: userId, companyId } }),
+      this.prisma.emptyContainerMovement.count({ where: { createdById: userId, companyId } }),
+      this.prisma.vehicle.count({ where: { driverId: userId, companyId } }),
+      this.prisma.deliveryTrip.count({ where: { driverId: userId, companyId } }),
+      this.prisma.expense.count({ where: { spentById: userId, companyId } }),
+      this.prisma.auditLog.count({ where: { userId, companyId } }),
+      this.prisma.productPriceHistory.count({ where: { changedById: userId, companyId } })
     ]);
 
     return counts.reduce((total, count) => total + count, 0);
@@ -291,6 +297,7 @@ export class UsersService {
 
   private async createAuditLog(
     userId: string,
+    companyId: string,
     action: string,
     entity: string,
     entityId: string,
@@ -299,6 +306,7 @@ export class UsersService {
     await this.prisma.auditLog.create({
       data: {
         userId,
+        companyId,
         action,
         entity,
         entityId,

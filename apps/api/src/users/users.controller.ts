@@ -14,8 +14,8 @@ export class UsersController {
 
   @Get("users")
   @Roles("OWNER", "ADMIN")
-  list(@Query() query: PaginationQuery) {
-    return this.usersService.listUsers(query);
+  list(@Query() query: PaginationQuery, @Req() request: AuthenticatedRequest) {
+    return this.usersService.listUsers(request.user.companyId, query);
   }
 
   @Get("users/roles")
@@ -26,41 +26,41 @@ export class UsersController {
 
   @Get("audit-logs")
   @Roles("OWNER")
-  auditLogs(@Query() query: PaginationQuery) {
-    return this.usersService.listAuditLogs(query);
+  auditLogs(@Query() query: PaginationQuery, @Req() request: AuthenticatedRequest) {
+    return this.usersService.listAuditLogs(request.user.companyId, query);
   }
 
   @Post("users")
   @Roles("OWNER", "ADMIN")
   create(@Body() dto: CreateUserDto, @Req() request: AuthenticatedRequest) {
-    return this.usersService.createUser(dto, request.user.id, request.user.role);
+    return this.usersService.createUser(dto, request.user.id, request.user.role, request.user.companyId);
   }
 
   @Patch("users/:id")
   @Roles("OWNER", "ADMIN")
   update(@Param("id") id: string, @Body() dto: UpdateUserDto, @Req() request: AuthenticatedRequest) {
-    return this.usersService.updateUser(id, dto, request.user.id, request.user.role);
+    return this.usersService.updateUser(id, dto, request.user.id, request.user.role, request.user.companyId);
   }
 
   @Delete("users/:id")
   @Roles("OWNER", "ADMIN")
   delete(@Param("id") id: string, @Req() request: AuthenticatedRequest) {
-    return this.usersService.deleteUser(id, request.user.id, request.user.role);
+    return this.usersService.deleteUser(id, request.user.id, request.user.role, request.user.companyId);
   }
 
   @Post("users/:id/reset-password")
   @Roles("OWNER", "ADMIN")
   resetPassword(@Param("id") id: string, @Body() dto: ResetPasswordDto, @Req() request: AuthenticatedRequest) {
-    return this.usersService.resetPassword(id, dto, request.user.id, request.user.role);
+    return this.usersService.resetPassword(id, dto, request.user.id, request.user.role, request.user.companyId);
   }
 
   @Get("me")
   me(@Req() request: AuthenticatedRequest) {
-    return this.usersService.getProfile(request.user.id);
+    return this.usersService.getProfile(request.user.id, request.user.companyId);
   }
 
   @Post("me/change-password")
   changePassword(@Body() dto: ChangePasswordDto, @Req() request: AuthenticatedRequest) {
-    return this.usersService.changePassword(request.user.id, dto);
+    return this.usersService.changePassword(request.user.id, request.user.companyId, dto);
   }
 }

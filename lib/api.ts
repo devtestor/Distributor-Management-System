@@ -1,5 +1,7 @@
 export type ApiUser = {
   id: string;
+  companyId?: string;
+  companyName?: string;
   fullName: string;
   email: string | null;
   phone?: string | null;

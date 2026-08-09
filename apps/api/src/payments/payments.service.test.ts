@@ -59,7 +59,8 @@ describe("PaymentsService", () => {
         method: PaymentMethod.CASH,
         amount: 50
       },
-      "user-1"
+      "user-1",
+      "company-1"
     );
 
     assert.deepEqual(calls, ["payment.create", "invoice.update:PAID", "auditLog.create"]);
@@ -77,7 +78,8 @@ describe("PaymentsService", () => {
           method: PaymentMethod.CASH,
           amount: 20
         },
-        "user-1"
+        "user-1",
+        "company-1"
       ),
       BadRequestException
     );

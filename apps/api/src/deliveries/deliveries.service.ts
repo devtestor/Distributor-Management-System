@@ -9,28 +9,28 @@ import { ReconcileDeliveryTripDto } from "./dto/reconcile-delivery-trip.dto";
 export class DeliveriesService {
   constructor(@Inject(PrismaService) private readonly prisma: PrismaService) {}
 
-  list(actorUserId: string, actorRole: string, query?: PaginationQuery) {
+  list(actorUserId: string, actorRole: string, companyId: string, query?: PaginationQuery) {
     return this.prisma.deliveryTrip.findMany({
-      where: actorRole === "DRIVER" ? { driverId: actorUserId } : undefined,
+      where: actorRole === "DRIVER" ? { companyId, driverId: actorUserId } : { companyId },
       include: { driver: true, vehicle: true, items: { include: { product: true } } },
       orderBy: { createdAt: "desc" },
       ...paginationArgs(query)
     });
   }
 
-  listVehicles() {
+  listVehicles(companyId: string) {
     return this.prisma.vehicle.findMany({
-      where: { isActive: true },
+      where: { companyId, isActive: true },
       include: { driver: true },
       orderBy: { plateNumber: "asc" }
     });
   }
 
-  async create(dto: CreateDeliveryTripDto, actorUserId: string, actorRole: string) {
+  async create(dto: CreateDeliveryTripDto, actorUserId: string, actorRole: string, companyId: string) {
     const [warehouse, vehicle, driver] = await Promise.all([
-      this.prisma.warehouse.findUnique({ where: { id: dto.warehouseId } }),
-      this.prisma.vehicle.findUnique({ where: { id: dto.vehicleId } }),
-      this.prisma.user.findUnique({ where: { id: dto.driverId }, include: { role: true } })
+      this.prisma.warehouse.findUnique({ where: { id: dto.warehouseId, companyId } }),
+      this.prisma.vehicle.findUnique({ where: { id: dto.vehicleId, companyId } }),
+      this.prisma.user.findUnique({ where: { id: dto.driverId, companyId }, include: { role: true } })
     ]);
 
     if (!warehouse) throw new NotFoundException("Warehouse not found");
@@ -43,6 +43,7 @@ export class DeliveriesService {
       for (const item of dto.items) {
         await this.assertWarehouseStockCanLoad({
           productId: item.productId,
+          companyId,
           warehouseId: dto.warehouseId,
           quantity: item.loadedQuantity,
           allowNegativeStock: dto.allowNegativeStock,
@@ -54,6 +55,7 @@ export class DeliveriesService {
       const trip = await tx.deliveryTrip.create({
         data: {
           vehicleId: dto.vehicleId,
+          companyId,
           driverId: dto.driverId,
           route: dto.route,
           status: DeliveryStatus.ON_ROUTE,
@@ -69,6 +71,7 @@ export class DeliveriesService {
         await tx.stockMovement.create({
           data: {
             productId: item.productId,
+            companyId,
             warehouseId: dto.warehouseId,
             movementType: StockMovementType.TRUCK_LOAD,
             quantity: item.loadedQuantity,
@@ -81,19 +84,35 @@ export class DeliveriesService {
         });
       }
 
+      await tx.auditLog.create({
+        data: {
+          userId: actorUserId,
+          companyId,
+          action: "CREATE",
+          entity: "DeliveryTrip",
+          entityId: trip.id,
+          metadata: {
+            route: trip.route,
+            vehicleId: trip.vehicleId,
+            driverId: trip.driverId,
+            itemCount: trip.items.length
+          }
+        }
+      });
+
       return trip;
     });
   }
 
-  async reconcile(tripId: string, dto: ReconcileDeliveryTripDto, actorUserId: string) {
+  async reconcile(tripId: string, dto: ReconcileDeliveryTripDto, actorUserId: string, companyId: string) {
     const trip = await this.prisma.deliveryTrip.findUnique({
-      where: { id: tripId },
+      where: { id: tripId, companyId },
       include: { vehicle: true, items: { include: { product: true } } }
     });
 
     if (!trip) throw new NotFoundException("Delivery trip not found");
     if (trip.driverId !== actorUserId) {
-      const actor = await this.prisma.user.findUnique({ where: { id: actorUserId }, include: { role: true } });
+      const actor = await this.prisma.user.findUnique({ where: { id: actorUserId, companyId }, include: { role: true } });
       if (!actor || !["OWNER", "ADMIN", "WAREHOUSE_MANAGER"].includes(actor.role.name)) {
         throw new ForbiddenException("Driver can only reconcile assigned trips");
       }
@@ -105,6 +124,7 @@ export class DeliveriesService {
     const loadMovement = await this.prisma.stockMovement.findFirst({
       where: {
         referenceType: "DELIVERY_TRIP",
+        companyId,
         referenceId: trip.id,
         movementType: StockMovementType.TRUCK_LOAD
       },
@@ -142,6 +162,7 @@ export class DeliveriesService {
           await tx.stockMovement.create({
             data: {
               productId: tripItem.productId,
+              companyId,
               warehouseId: loadMovement.warehouseId,
               movementType: StockMovementType.TRUCK_RETURN,
               quantity: item.returnedQuantity,
@@ -155,8 +176,8 @@ export class DeliveriesService {
         }
       }
 
-      return tx.deliveryTrip.update({
-        where: { id: tripId },
+      const updated = await tx.deliveryTrip.update({
+        where: { id: tripId, companyId },
         data: {
           status: DeliveryStatus.CLOSED,
           cashCollected: dto.cashCollected,
@@ -165,23 +186,41 @@ export class DeliveriesService {
         },
         include: { driver: true, vehicle: true, items: { include: { product: true } } }
       });
+
+      await tx.auditLog.create({
+        data: {
+          userId: actorUserId,
+          companyId,
+          action: "RECONCILE",
+          entity: "DeliveryTrip",
+          entityId: trip.id,
+          metadata: {
+            cashCollected: dto.cashCollected,
+            creditIssued: dto.creditIssued,
+            itemCount: dto.items.length
+          }
+        }
+      });
+
+      return updated;
     });
   }
 
   private async assertWarehouseStockCanLoad(input: {
     productId: string;
+    companyId: string;
     warehouseId: string;
     quantity: number;
     allowNegativeStock?: boolean;
     actorRole: string;
     tx: Prisma.TransactionClient;
   }) {
-    const product = await input.tx.product.findUnique({ where: { id: input.productId }, select: { id: true, isActive: true } });
+    const product = await input.tx.product.findUnique({ where: { id: input.productId, companyId: input.companyId }, select: { id: true, isActive: true } });
     if (!product) throw new NotFoundException("Product not found");
     if (!product.isActive) throw new BadRequestException("Inactive products cannot be loaded to a truck");
 
     const movements = await input.tx.stockMovement.findMany({
-      where: { productId: input.productId, warehouseId: input.warehouseId },
+      where: { productId: input.productId, warehouseId: input.warehouseId, companyId: input.companyId },
       select: { movementType: true, quantity: true }
     });
     const balance = movements.reduce((sum, movement) => sum + this.signedQuantity(movement.movementType, movement.quantity), 0);

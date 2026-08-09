@@ -1,4 +1,5 @@
-import { Body, Controller, Get, Inject, Param, Post, Query } from "@nestjs/common";
+import { Body, Controller, Get, Inject, Param, Post, Query, Req } from "@nestjs/common";
+import type { AuthenticatedRequest } from "../common/authenticated-request";
 import type { PaginationQuery } from "../common/pagination";
 import { Roles } from "../common/roles.decorator";
 import { CreateCustomerDto } from "./dto/create-customer.dto";
@@ -10,31 +11,31 @@ export class CustomersController {
 
   @Roles("OWNER", "ADMIN", "ACCOUNTANT", "SALESPERSON")
   @Get()
-  list(@Query() query: PaginationQuery) {
-    return this.customersService.list(query);
+  list(@Query() query: PaginationQuery, @Req() request: AuthenticatedRequest) {
+    return this.customersService.list(request.user.companyId, query);
   }
 
   @Roles("OWNER", "ADMIN", "ACCOUNTANT", "SALESPERSON")
   @Post()
-  create(@Body() dto: CreateCustomerDto) {
-    return this.customersService.create(dto);
+  create(@Body() dto: CreateCustomerDto, @Req() request: AuthenticatedRequest) {
+    return this.customersService.create(dto, request.user.companyId);
   }
 
   @Roles("OWNER", "ADMIN", "ACCOUNTANT")
   @Get("debt-aging")
-  debtAging() {
-    return this.customersService.getDebtAging();
+  debtAging(@Req() request: AuthenticatedRequest) {
+    return this.customersService.getDebtAging(request.user.companyId);
   }
 
   @Roles("OWNER", "ADMIN", "ACCOUNTANT", "SALESPERSON")
   @Get(":id/balance")
-  balance(@Param("id") id: string) {
-    return this.customersService.getBalance(id);
+  balance(@Param("id") id: string, @Req() request: AuthenticatedRequest) {
+    return this.customersService.getBalance(id, request.user.companyId);
   }
 
   @Roles("OWNER", "ADMIN", "ACCOUNTANT", "SALESPERSON")
   @Get(":id/account-history")
-  accountHistory(@Param("id") id: string) {
-    return this.customersService.getAccountHistory(id);
+  accountHistory(@Param("id") id: string, @Req() request: AuthenticatedRequest) {
+    return this.customersService.getAccountHistory(id, request.user.companyId);
   }
 }

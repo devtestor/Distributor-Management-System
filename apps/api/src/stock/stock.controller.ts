@@ -13,20 +13,20 @@ export class StockController {
 
   @Roles("OWNER", "ADMIN", "WAREHOUSE_MANAGER")
   @Get("warehouses")
-  warehouses() {
-    return this.stockService.listWarehouses();
+  warehouses(@Req() request: AuthenticatedRequest) {
+    return this.stockService.listWarehouses(request.user.companyId);
   }
 
   @Roles("OWNER", "ADMIN", "WAREHOUSE_MANAGER")
   @Get("stock/movements")
-  movements(@Query() query: PaginationQuery) {
-    return this.stockService.listMovements(query);
+  movements(@Query() query: PaginationQuery, @Req() request: AuthenticatedRequest) {
+    return this.stockService.listMovements(request.user.companyId, query);
   }
 
   @Roles("OWNER", "ADMIN", "WAREHOUSE_MANAGER")
   @Get("warehouses/:id/stock")
-  warehouseStock(@Param("id") warehouseId: string) {
-    return this.stockService.getWarehouseStock(warehouseId);
+  warehouseStock(@Param("id") warehouseId: string, @Req() request: AuthenticatedRequest) {
+    return this.stockService.getWarehouseStock(warehouseId, request.user.companyId);
   }
 
   @Roles("OWNER", "ADMIN", "WAREHOUSE_MANAGER")
@@ -34,6 +34,7 @@ export class StockController {
   receive(@Body() dto: StockMovementDto, @Req() request: AuthenticatedRequest) {
     return this.stockService.recordMovement({
       ...dto,
+      companyId: request.user.companyId,
       createdById: request.user.id,
       actorRole: request.user.role
     });
@@ -44,6 +45,7 @@ export class StockController {
   adjust(@Body() dto: StockMovementDto, @Req() request: AuthenticatedRequest) {
     return this.stockService.recordMovement({
       ...dto,
+      companyId: request.user.companyId,
       createdById: request.user.id,
       actorRole: request.user.role
     });
@@ -54,6 +56,7 @@ export class StockController {
   transfer(@Body() dto: StockTransferDto, @Req() request: AuthenticatedRequest) {
     return this.stockService.transferStock({
       ...dto,
+      companyId: request.user.companyId,
       createdById: request.user.id,
       actorRole: request.user.role
     });
@@ -64,6 +67,7 @@ export class StockController {
   count(@Body() dto: StockCountDto, @Req() request: AuthenticatedRequest) {
     return this.stockService.recordStockCount({
       ...dto,
+      companyId: request.user.companyId,
       createdById: request.user.id
     });
   }

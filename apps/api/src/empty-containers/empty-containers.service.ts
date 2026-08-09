@@ -1,4 +1,4 @@
-import { Inject, Injectable, NotFoundException } from "@nestjs/common";
+import { BadRequestException, Inject, Injectable, NotFoundException } from "@nestjs/common";
 import { EmptyMovementType } from "@prisma/client";
 import { PrismaService } from "../prisma/prisma.service";
 import { CreateEmptyContainerMovementDto } from "./dto/create-empty-container-movement.dto";
@@ -7,12 +7,12 @@ import { CreateEmptyContainerMovementDto } from "./dto/create-empty-container-mo
 export class EmptyContainersService {
   constructor(@Inject(PrismaService) private readonly prisma: PrismaService) {}
 
-  async customerLedger(customerId: string) {
-    const customer = await this.prisma.customer.findUnique({ where: { id: customerId } });
+  async customerLedger(customerId: string, companyId: string) {
+    const customer = await this.prisma.customer.findUnique({ where: { id: customerId, companyId } });
     if (!customer) throw new NotFoundException("Customer not found");
 
     const movements = await this.prisma.emptyContainerMovement.findMany({
-      where: { customerId },
+      where: { customerId, companyId },
       include: { product: true },
       orderBy: { createdAt: "desc" }
     });
@@ -27,10 +27,19 @@ export class EmptyContainersService {
     return { customer, balance, movements };
   }
 
-  createMovement(dto: CreateEmptyContainerMovementDto, createdById: string) {
+  async createMovement(dto: CreateEmptyContainerMovementDto, createdById: string, companyId: string) {
+    const customer = await this.prisma.customer.findUnique({ where: { id: dto.customerId, companyId } });
+    if (!customer) throw new NotFoundException("Customer not found");
+
+    if (dto.productId) {
+      const product = await this.prisma.product.findUnique({ where: { id: dto.productId, companyId } });
+      if (!product) throw new BadRequestException("Product not found");
+    }
+
     return this.prisma.emptyContainerMovement.create({
       data: {
         ...dto,
+        companyId,
         createdById
       },
       include: { customer: true, product: true }

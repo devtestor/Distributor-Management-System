@@ -700,6 +700,10 @@ Current status:
 - Invoice and payment creation now write audit log entries.
 - A backend test script and initial payment service tests have been added.
 - High-growth list endpoints now accept `page` and `limit` query parameters with capped default limits.
+- Company/distributor ownership has been added across core business records.
+- Existing production/demo records are backfilled into the default BRALIRWA distributor company.
+- Authenticated API reads/writes now carry `companyId` from the logged-in user.
+- Product SKU, invoice number, and vehicle plate uniqueness are now scoped per company.
 - Basic user training notes have been added.
 - External managed database backup scheduling still needs to be enabled in the selected PostgreSQL provider.
 - Structured error monitoring provider is still pending.

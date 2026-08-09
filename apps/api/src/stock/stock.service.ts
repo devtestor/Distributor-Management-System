@@ -14,6 +14,7 @@ const inboundMovementTypes = new Set<StockMovementType>([
 ]);
 
 type RecordMovementInput = StockMovementDto & {
+  companyId: string;
   createdById: string;
   actorRole: string;
 };
@@ -24,14 +25,16 @@ type StockTransaction = Prisma.TransactionClient;
 export class StockService {
   constructor(@Inject(PrismaService) private readonly prisma: PrismaService) {}
 
-  listWarehouses() {
+  listWarehouses(companyId: string) {
     return this.prisma.warehouse.findMany({
+      where: { companyId },
       orderBy: { name: "asc" }
     });
   }
 
-  listMovements(query?: PaginationQuery) {
+  listMovements(companyId: string, query?: PaginationQuery) {
     return this.prisma.stockMovement.findMany({
+      where: { companyId },
       include: {
         product: true,
         warehouse: true,
@@ -44,14 +47,15 @@ export class StockService {
     });
   }
 
-  async getWarehouseStock(warehouseId: string) {
-    await this.assertWarehouseExists(warehouseId);
+  async getWarehouseStock(warehouseId: string, companyId: string) {
+    await this.assertWarehouseExists(warehouseId, companyId);
 
     const products = await this.prisma.product.findMany({
+      where: { companyId },
       orderBy: { name: "asc" },
       include: {
         stockMovements: {
-          where: { warehouseId },
+          where: { warehouseId, companyId },
           select: { movementType: true, quantity: true }
         }
       }
@@ -78,12 +82,13 @@ export class StockService {
   }
 
   async recordMovement(input: RecordMovementInput) {
-    await this.assertProductExists(input.productId);
-    await this.assertWarehouseExists(input.warehouseId);
+    await this.assertProductExists(input.productId, input.companyId);
+    await this.assertWarehouseExists(input.warehouseId, input.companyId);
 
     const signedQuantity = this.signedQuantity(input.movementType, input.quantity);
     await this.assertMovementCanApply({
       productId: input.productId,
+      companyId: input.companyId,
       warehouseId: input.warehouseId,
       signedQuantity,
       allowNegative: input.allowNegative,
@@ -91,13 +96,14 @@ export class StockService {
     });
 
     const product = await this.prisma.product.findUnique({
-      where: { id: input.productId },
+      where: { id: input.productId, companyId: input.companyId },
       select: { unitCost: true }
     });
 
     return this.prisma.stockMovement.create({
       data: {
         productId: input.productId,
+        companyId: input.companyId,
         warehouseId: input.warehouseId,
         movementType: input.movementType,
         quantity: input.quantity,
@@ -115,19 +121,23 @@ export class StockService {
     });
   }
 
-  async transferStock(input: StockTransferDto & { createdById: string; actorRole: string }) {
+  async transferStock(input: StockTransferDto & { companyId: string; createdById: string; actorRole: string }) {
     if (input.fromWarehouseId === input.toWarehouseId) {
       throw new BadRequestException("Source and destination warehouses must be different");
     }
 
-    await this.assertProductExists(input.productId);
-    await Promise.all([this.assertWarehouseExists(input.fromWarehouseId), this.assertWarehouseExists(input.toWarehouseId)]);
+    await this.assertProductExists(input.productId, input.companyId);
+    await Promise.all([
+      this.assertWarehouseExists(input.fromWarehouseId, input.companyId),
+      this.assertWarehouseExists(input.toWarehouseId, input.companyId)
+    ]);
 
     const referenceId = randomUUID();
 
     return this.prisma.$transaction(async (tx) => {
       await this.assertMovementCanApply({
         productId: input.productId,
+        companyId: input.companyId,
         warehouseId: input.fromWarehouseId,
         signedQuantity: -input.quantity,
         allowNegative: input.allowNegative,
@@ -136,13 +146,14 @@ export class StockService {
       });
 
       const product = await tx.product.findUnique({
-        where: { id: input.productId },
+        where: { id: input.productId, companyId: input.companyId },
         select: { unitCost: true }
       });
 
       const outbound = await tx.stockMovement.create({
         data: {
           productId: input.productId,
+          companyId: input.companyId,
           warehouseId: input.fromWarehouseId,
           movementType: StockMovementType.TRANSFER_OUT,
           quantity: input.quantity,
@@ -157,6 +168,7 @@ export class StockService {
       const inbound = await tx.stockMovement.create({
         data: {
           productId: input.productId,
+          companyId: input.companyId,
           warehouseId: input.toWarehouseId,
           movementType: StockMovementType.TRANSFER_IN,
           quantity: input.quantity,
@@ -172,20 +184,21 @@ export class StockService {
     });
   }
 
-  async recordStockCount(input: StockCountDto & { createdById: string }) {
-    await this.assertProductExists(input.productId);
-    await this.assertWarehouseExists(input.warehouseId);
+  async recordStockCount(input: StockCountDto & { companyId: string; createdById: string }) {
+    await this.assertProductExists(input.productId, input.companyId);
+    await this.assertWarehouseExists(input.warehouseId, input.companyId);
 
-    const currentStock = await this.getProductWarehouseBalance(input.productId, input.warehouseId);
+    const currentStock = await this.getProductWarehouseBalance(input.productId, input.warehouseId, input.companyId);
     const adjustmentQuantity = input.countedQuantity - currentStock;
     const product = await this.prisma.product.findUnique({
-      where: { id: input.productId },
+      where: { id: input.productId, companyId: input.companyId },
       select: { unitCost: true }
     });
 
     return this.prisma.stockMovement.create({
       data: {
         productId: input.productId,
+        companyId: input.companyId,
         warehouseId: input.warehouseId,
         movementType: StockMovementType.COUNT_ADJUSTMENT,
         quantity: adjustmentQuantity,
@@ -204,9 +217,9 @@ export class StockService {
     });
   }
 
-  private async getProductWarehouseBalance(productId: string, warehouseId: string, tx: StockTransaction = this.prisma) {
+  private async getProductWarehouseBalance(productId: string, warehouseId: string, companyId: string, tx: StockTransaction = this.prisma) {
     const movements = await tx.stockMovement.findMany({
-      where: { productId, warehouseId },
+      where: { productId, warehouseId, companyId },
       select: { movementType: true, quantity: true }
     });
 
@@ -215,17 +228,17 @@ export class StockService {
     }, 0);
   }
 
-  private async assertProductExists(productId: string) {
+  private async assertProductExists(productId: string, companyId: string) {
     const product = await this.prisma.product.findUnique({
-      where: { id: productId },
+      where: { id: productId, companyId },
       select: { id: true }
     });
     if (!product) throw new NotFoundException("Product not found");
   }
 
-  private async assertWarehouseExists(warehouseId: string) {
+  private async assertWarehouseExists(warehouseId: string, companyId: string) {
     const warehouse = await this.prisma.warehouse.findUnique({
-      where: { id: warehouseId },
+      where: { id: warehouseId, companyId },
       select: { id: true }
     });
     if (!warehouse) throw new NotFoundException("Warehouse not found");
@@ -233,13 +246,14 @@ export class StockService {
 
   private async assertMovementCanApply(input: {
     productId: string;
+    companyId: string;
     warehouseId: string;
     signedQuantity: number;
     allowNegative?: boolean;
     actorRole: string;
     tx?: StockTransaction;
   }) {
-    const currentStock = await this.getProductWarehouseBalance(input.productId, input.warehouseId, input.tx);
+    const currentStock = await this.getProductWarehouseBalance(input.productId, input.warehouseId, input.companyId, input.tx);
     if (currentStock + input.signedQuantity >= 0) return;
 
     if (input.allowNegative && (input.actorRole === "OWNER" || input.actorRole === "ADMIN")) {

@@ -5,6 +5,16 @@ import bcrypt from "bcryptjs";
 const prisma = new PrismaClient();
 
 async function main() {
+  const company = await prisma.company.upsert({
+    where: { code: "BRALIRWA-DEMO" },
+    update: { name: "BRALIRWA Distributor" },
+    create: {
+      id: "00000000-0000-0000-0000-000000000010",
+      name: "BRALIRWA Distributor",
+      code: "BRALIRWA-DEMO"
+    }
+  });
+
   const roles = await Promise.all(
     [
       ["OWNER", "Full business control"],
@@ -29,8 +39,9 @@ async function main() {
 
   const owner = await prisma.user.upsert({
     where: { email: "owner@example.com" },
-    update: { roleId: ownerRole.id, passwordHash },
+    update: { companyId: company.id, roleId: ownerRole.id, passwordHash },
     create: {
+      companyId: company.id,
       roleId: ownerRole.id,
       fullName: "Demo Owner",
       email: "owner@example.com",
@@ -42,9 +53,10 @@ async function main() {
 
   const warehouse = await prisma.warehouse.upsert({
     where: { id: "00000000-0000-0000-0000-000000000001" },
-    update: {},
+    update: { companyId: company.id },
     create: {
       id: "00000000-0000-0000-0000-000000000001",
+      companyId: company.id,
       name: "Main Warehouse",
       location: "Kigali"
     }
@@ -94,8 +106,9 @@ async function main() {
 
   for (const item of products) {
     const product = await prisma.product.upsert({
-      where: { sku: item.sku },
+      where: { companyId_sku: { companyId: company.id, sku: item.sku } },
       update: {
+        companyId: company.id,
         name: item.name,
         brand: item.brand,
         category: item.category,
@@ -107,6 +120,7 @@ async function main() {
         tracksEmpties: item.tracksEmpties
       },
       create: {
+        companyId: company.id,
         sku: item.sku,
         name: item.name,
         brand: item.brand,
@@ -123,6 +137,7 @@ async function main() {
     const existingOpening = await prisma.stockMovement.findFirst({
       where: {
         productId: product.id,
+        companyId: company.id,
         warehouseId: warehouse.id,
         movementType: StockMovementType.PURCHASE_RECEIPT,
         referenceType: "SEED_OPENING_STOCK"
@@ -133,6 +148,7 @@ async function main() {
       await prisma.stockMovement.create({
         data: {
           productId: product.id,
+          companyId: company.id,
           warehouseId: warehouse.id,
           movementType: StockMovementType.PURCHASE_RECEIPT,
           quantity: item.openingStock,
@@ -147,9 +163,10 @@ async function main() {
 
   await prisma.customer.upsert({
     where: { id: "00000000-0000-0000-0000-000000000101" },
-    update: {},
+    update: { companyId: company.id },
     create: {
       id: "00000000-0000-0000-0000-000000000101",
+      companyId: company.id,
       name: "Kimironko Mini Market",
       phone: "+250 788 000 114",
       route: "Kigali East",
@@ -159,9 +176,10 @@ async function main() {
   });
 
   await prisma.vehicle.upsert({
-    where: { plateNumber: "RAB 334D" },
-    update: {},
+    where: { companyId_plateNumber: { companyId: company.id, plateNumber: "RAB 334D" } },
+    update: { companyId: company.id },
     create: {
+      companyId: company.id,
       plateNumber: "RAB 334D"
     }
   });
