@@ -3,9 +3,11 @@ import { randomUUID } from "crypto";
 import { Prisma, StockMovementType } from "@prisma/client";
 import { PrismaService } from "../prisma/prisma.service";
 import { paginationArgs, type PaginationQuery } from "../common/pagination";
+import { CreateWarehouseDto } from "./dto/create-warehouse.dto";
 import { StockCountDto } from "./dto/stock-count.dto";
 import { StockMovementDto } from "./dto/stock-movement.dto";
 import { StockTransferDto } from "./dto/stock-transfer.dto";
+import { UpdateWarehouseDto } from "./dto/update-warehouse.dto";
 
 const inboundMovementTypes = new Set<StockMovementType>([
   StockMovementType.PURCHASE_RECEIPT,
@@ -30,6 +32,92 @@ export class StockService {
       where: { companyId },
       orderBy: { name: "asc" }
     });
+  }
+
+  async createWarehouse(dto: CreateWarehouseDto, actorUserId: string, companyId: string) {
+    const warehouse = await this.prisma.warehouse.create({
+      data: {
+        companyId,
+        name: dto.name,
+        location: dto.location
+      }
+    });
+
+    await this.prisma.auditLog.create({
+      data: {
+        userId: actorUserId,
+        companyId,
+        action: "WAREHOUSE_CREATED",
+        entity: "Warehouse",
+        entityId: warehouse.id,
+        metadata: {
+          name: warehouse.name,
+          location: warehouse.location
+        }
+      }
+    });
+
+    return warehouse;
+  }
+
+  async updateWarehouse(warehouseId: string, dto: UpdateWarehouseDto, actorUserId: string, companyId: string) {
+    await this.assertWarehouseExists(warehouseId, companyId);
+
+    const warehouse = await this.prisma.warehouse.update({
+      where: { id: warehouseId, companyId },
+      data: dto
+    });
+
+    await this.prisma.auditLog.create({
+      data: {
+        userId: actorUserId,
+        companyId,
+        action: "WAREHOUSE_UPDATED",
+        entity: "Warehouse",
+        entityId: warehouse.id,
+        metadata: {
+          name: warehouse.name,
+          location: warehouse.location,
+          isActive: warehouse.isActive
+        }
+      }
+    });
+
+    return warehouse;
+  }
+
+  async deleteWarehouse(warehouseId: string, actorUserId: string, companyId: string) {
+    const warehouse = await this.prisma.warehouse.findUnique({
+      where: { id: warehouseId, companyId },
+      include: { _count: { select: { stockMovements: true } } }
+    });
+    if (!warehouse) throw new NotFoundException("Warehouse not found");
+    if (warehouse._count.stockMovements > 0) {
+      throw new BadRequestException("This warehouse has stock history. Deactivate it instead.");
+    }
+
+    await this.prisma.warehouse.delete({
+      where: { id: warehouseId, companyId }
+    });
+
+    await this.prisma.auditLog.create({
+      data: {
+        userId: actorUserId,
+        companyId,
+        action: "WAREHOUSE_DELETED",
+        entity: "Warehouse",
+        entityId: warehouse.id,
+        metadata: {
+          name: warehouse.name,
+          location: warehouse.location
+        }
+      }
+    });
+
+    return {
+      id: warehouse.id,
+      deletedById: actorUserId
+    };
   }
 
   listMovements(companyId: string, query?: PaginationQuery) {

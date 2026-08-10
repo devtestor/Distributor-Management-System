@@ -2,6 +2,7 @@ import { BadRequestException, ForbiddenException, Inject, Injectable, NotFoundEx
 import { InvoiceStatus, PaymentMethod, PaymentStatus, Prisma, StockMovementType } from "@prisma/client";
 import { PrismaService } from "../prisma/prisma.service";
 import { paginationArgs, type PaginationQuery } from "../common/pagination";
+import { CancelInvoiceDto } from "./dto/cancel-invoice.dto";
 import { CreateInvoiceDto } from "./dto/create-invoice.dto";
 
 const mainWarehouseId = "00000000-0000-0000-0000-000000000001";
@@ -169,6 +170,78 @@ export class InvoicesService {
       });
 
       return invoice;
+    });
+  }
+
+  async cancel(id: string, dto: CancelInvoiceDto, actorUserId: string, companyId: string) {
+    const invoice = await this.prisma.invoice.findUnique({
+      where: { id, companyId },
+      include: { items: { include: { product: true } }, payments: true }
+    });
+
+    if (!invoice) throw new NotFoundException("Invoice not found");
+    if (invoice.status === InvoiceStatus.CANCELLED) throw new BadRequestException("Invoice is already cancelled");
+    if (invoice.payments.length > 0) {
+      throw new BadRequestException("Invoice has payments. Reverse or delete payments before cancelling the invoice.");
+    }
+
+    const saleMovements = await this.prisma.stockMovement.findMany({
+      where: {
+        companyId,
+        referenceType: "INVOICE",
+        referenceId: invoice.id,
+        movementType: StockMovementType.SALE_ISSUE
+      },
+      select: {
+        productId: true,
+        warehouseId: true,
+        quantity: true,
+        unitCost: true
+      }
+    });
+
+    return this.prisma.$transaction(async (tx) => {
+      const cancelled = await tx.invoice.update({
+        where: { id, companyId },
+        data: {
+          status: InvoiceStatus.CANCELLED,
+          paymentStatus: PaymentStatus.UNPAID
+        },
+        include: { customer: true, items: { include: { product: true } }, payments: true }
+      });
+
+      await tx.stockMovement.createMany({
+        data: saleMovements.map((movement) => ({
+          productId: movement.productId,
+          companyId,
+          warehouseId: movement.warehouseId,
+          movementType: StockMovementType.COUNT_ADJUSTMENT,
+          quantity: movement.quantity,
+          unitCost: movement.unitCost,
+          referenceType: "INVOICE_CANCEL",
+          referenceId: invoice.id,
+          note: dto.note ?? `Cancelled invoice ${invoice.invoiceNumber}`,
+          createdById: actorUserId
+        }))
+      });
+
+      await tx.auditLog.create({
+        data: {
+          userId: actorUserId,
+          companyId,
+          action: "INVOICE_CANCELLED",
+          entity: "Invoice",
+          entityId: invoice.id,
+          metadata: {
+            invoiceNumber: invoice.invoiceNumber,
+            totalAmount: Number(invoice.totalAmount),
+            stockReversals: saleMovements.length,
+            note: dto.note
+          }
+        }
+      });
+
+      return cancelled;
     });
   }
 

@@ -2,6 +2,7 @@ import { Body, Controller, Get, Inject, Param, Post, Query, Req } from "@nestjs/
 import type { AuthenticatedRequest } from "../common/authenticated-request";
 import type { PaginationQuery } from "../common/pagination";
 import { Roles } from "../common/roles.decorator";
+import { CancelInvoiceDto } from "./dto/cancel-invoice.dto";
 import { CreateInvoiceDto } from "./dto/create-invoice.dto";
 import { InvoicesService } from "./invoices.service";
 
@@ -25,5 +26,11 @@ export class InvoicesController {
   @Post()
   create(@Body() dto: CreateInvoiceDto, @Req() request: AuthenticatedRequest) {
     return this.invoicesService.create(dto, request.user.id, request.user.role, request.user.companyId);
+  }
+
+  @Roles("OWNER", "ADMIN")
+  @Post(":id/cancel")
+  cancel(@Param("id") id: string, @Body() dto: CancelInvoiceDto, @Req() request: AuthenticatedRequest) {
+    return this.invoicesService.cancel(id, dto, request.user.id, request.user.companyId);
   }
 }

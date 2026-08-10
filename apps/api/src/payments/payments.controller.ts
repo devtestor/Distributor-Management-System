@@ -1,4 +1,4 @@
-import { Body, Controller, Get, Inject, Post, Query, Req } from "@nestjs/common";
+import { Body, Controller, Delete, Get, Inject, Param, Post, Query, Req } from "@nestjs/common";
 import type { AuthenticatedRequest } from "../common/authenticated-request";
 import type { PaginationQuery } from "../common/pagination";
 import { Roles } from "../common/roles.decorator";
@@ -19,5 +19,11 @@ export class PaymentsController {
   @Post()
   create(@Body() dto: CreatePaymentDto, @Req() request: AuthenticatedRequest) {
     return this.paymentsService.create(dto, request.user.id, request.user.companyId);
+  }
+
+  @Roles("OWNER", "ADMIN")
+  @Delete(":id")
+  delete(@Param("id") id: string, @Req() request: AuthenticatedRequest) {
+    return this.paymentsService.delete(id, request.user.id, request.user.companyId);
   }
 }

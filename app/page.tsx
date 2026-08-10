@@ -44,15 +44,22 @@ import {
   ApiStockReport,
   ApiUser,
   ApiVehicle,
+  ApiWarehouse,
+  cancelInvoice,
   changeMyPassword,
   createDeliveryTrip,
   createCustomer,
   createProduct,
   createInvoice,
   createUser,
+  createVehicle,
+  createWarehouse,
   deleteCustomer,
+  deletePayment,
   deleteProduct,
   deleteUser,
+  deleteVehicle,
+  deleteWarehouse,
   getProductPriceHistory,
   getCustomers,
   getDeliveryTrips,
@@ -71,6 +78,7 @@ import {
   getStockReport,
   getUsers,
   getVehicles,
+  getWarehouses,
   getWarehouseStock,
   login,
   OwnerDashboardResponse,
@@ -81,7 +89,9 @@ import {
   updateCompanyProfile,
   updateCustomer,
   updateProduct,
-  updateUser
+  updateUser,
+  updateVehicle,
+  updateWarehouse
 } from "@/lib/api";
 import {
   ActionType,
@@ -149,6 +159,7 @@ export default function Home() {
   const [apiCustomers, setApiCustomers] = useState<ApiCustomer[]>([]);
   const [apiTrips, setApiTrips] = useState<ApiDeliveryTrip[]>([]);
   const [apiVehicles, setApiVehicles] = useState<ApiVehicle[]>([]);
+  const [apiWarehouses, setApiWarehouses] = useState<ApiWarehouse[]>([]);
   const [apiInvoices, setApiInvoices] = useState<ApiInvoice[]>([]);
   const [apiUsers, setApiUsers] = useState<ApiUser[]>([]);
   const [apiRoles, setApiRoles] = useState<ApiRole[]>([]);
@@ -235,6 +246,20 @@ export default function Home() {
     currency: defaultCompanyProfile.currency,
     defaultLocale: defaultCompanyProfile.defaultLocale
   });
+  const [warehouseForm, setWarehouseForm] = useState({
+    warehouseId: "",
+    name: "",
+    location: ""
+  });
+  const [vehicleForm, setVehicleForm] = useState({
+    vehicleId: "",
+    plateNumber: "",
+    driverId: ""
+  });
+  const [cancelInvoiceForm, setCancelInvoiceForm] = useState({
+    invoiceId: "",
+    note: ""
+  });
   const [productForm, setProductForm] = useState(emptyProductForm);
   const t = useCallback((key: TranslationKey) => dictionary[locale][key], [locale]);
   const isAccountAdmin = user?.role === "OWNER" || user?.role === "ADMIN";
@@ -294,6 +319,7 @@ export default function Home() {
     setApiCustomers([]);
     setApiTrips([]);
     setApiVehicles([]);
+    setApiWarehouses([]);
     setApiInvoices([]);
     setApiUsers([]);
     setApiRoles([]);
@@ -325,7 +351,7 @@ export default function Home() {
         const canReadDeliveryRecords =
           profile.role === "OWNER" || profile.role === "ADMIN" || profile.role === "WAREHOUSE_MANAGER" || profile.role === "DRIVER";
         const canReadVehicles = profile.role === "OWNER" || profile.role === "ADMIN" || profile.role === "WAREHOUSE_MANAGER";
-        const [company, dashboard, rawProducts, stockItems, rawCustomers, rawPayments, rawTrips, rawVehicles, rawInvoices] = await Promise.all([
+        const [company, dashboard, rawProducts, stockItems, rawCustomers, rawPayments, rawTrips, rawVehicles, rawWarehouses, rawInvoices] = await Promise.all([
           optionalLiveData(getCompanyProfile(token), defaultCompanyProfile),
           canReadOwnerDashboard ? optionalLiveData(getOwnerDashboard(token), null) : Promise.resolve(null),
           canReadProducts ? optionalLiveData(getProducts(token), []) : Promise.resolve([]),
@@ -334,6 +360,7 @@ export default function Home() {
           canReadFinancialRecords ? optionalLiveData(getPayments(token), []) : Promise.resolve([]),
           canReadDeliveryRecords ? optionalLiveData(getDeliveryTrips(token), []) : Promise.resolve([]),
           canReadVehicles ? optionalLiveData(getVehicles(token), []) : Promise.resolve([]),
+          canReadInventory ? optionalLiveData(getWarehouses(token), []) : Promise.resolve([]),
           canReadFinancialRecords ? optionalLiveData(getInvoices(token), []) : Promise.resolve([])
         ]);
 
@@ -376,6 +403,7 @@ export default function Home() {
         setApiCustomers(rawCustomers);
         setApiTrips(rawTrips);
         setApiVehicles(rawVehicles);
+        setApiWarehouses(rawWarehouses);
         setApiInvoices(rawInvoices);
         setApiUsers(rawUsers);
         setApiRoles(rawRoles);
@@ -521,6 +549,7 @@ export default function Home() {
   const payableInvoices = apiInvoices.filter(
     (invoice) => invoice.customerId === paymentForm.customerId && invoice.paymentStatus !== "PAID"
   );
+  const activeVehicles = apiVehicles.filter((vehicle) => vehicle.isActive);
 
   const metrics = useMemo(() => {
     if (ownerDashboard) {
@@ -619,6 +648,32 @@ export default function Home() {
       priceChangeReason: ""
     }));
   }, [apiProducts, productForm.productId, productFormMode]);
+
+  useEffect(() => {
+    if (apiWarehouses.length === 0 || warehouseForm.warehouseId) return;
+    const warehouse = apiWarehouses[0];
+    setWarehouseForm({
+      warehouseId: warehouse.id,
+      name: warehouse.name,
+      location: warehouse.location ?? ""
+    });
+  }, [apiWarehouses, warehouseForm.warehouseId]);
+
+  useEffect(() => {
+    if (apiVehicles.length === 0 || vehicleForm.vehicleId) return;
+    const vehicle = apiVehicles[0];
+    setVehicleForm({
+      vehicleId: vehicle.id,
+      plateNumber: vehicle.plateNumber,
+      driverId: vehicle.driverId ?? ""
+    });
+  }, [apiVehicles, vehicleForm.vehicleId]);
+
+  useEffect(() => {
+    if (apiInvoices.length === 0 || cancelInvoiceForm.invoiceId) return;
+    const invoice = apiInvoices.find((entry) => entry.status !== "CANCELLED" && entry.payments.length === 0) ?? apiInvoices[0];
+    setCancelInvoiceForm((current) => ({ ...current, invoiceId: invoice.id }));
+  }, [apiInvoices, cancelInvoiceForm.invoiceId]);
 
   useEffect(() => {
     if (!accessToken || !productForm.productId || !isAccountAdmin || productFormMode === "create") {
@@ -736,9 +791,9 @@ export default function Home() {
 
     if (action === "delivery") {
       setDeliveryForm({
-        vehicleId: apiVehicles[0]?.id ?? "",
+        vehicleId: activeVehicles[0]?.id ?? "",
         driverId: driverUsers[0]?.id ?? "",
-        route: apiVehicles[0]?.driver?.fullName ?? "",
+        route: activeVehicles[0]?.driver?.fullName ?? "",
         allowNegativeStock: false,
         items: [emptyDeliveryLoadItem(apiProducts[0]?.id ?? "")]
       });
@@ -1021,6 +1076,78 @@ export default function Home() {
     );
   }
 
+  async function submitWarehouse(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (!accessToken) return;
+
+    await runAction(
+      async () => {
+        if (warehouseForm.warehouseId) {
+          await updateWarehouse(accessToken, warehouseForm.warehouseId, {
+            name: warehouseForm.name,
+            location: warehouseForm.location || undefined
+          });
+          return;
+        }
+
+        const warehouse = await createWarehouse(accessToken, {
+          name: warehouseForm.name,
+          location: warehouseForm.location || undefined
+        });
+        setWarehouseForm({
+          warehouseId: warehouse.id,
+          name: warehouse.name,
+          location: warehouse.location ?? ""
+        });
+      },
+      t("warehouseSaved")
+    );
+  }
+
+  async function submitVehicle(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (!accessToken) return;
+
+    await runAction(
+      async () => {
+        if (vehicleForm.vehicleId) {
+          await updateVehicle(accessToken, vehicleForm.vehicleId, {
+            plateNumber: vehicleForm.plateNumber,
+            driverId: vehicleForm.driverId || ""
+          });
+          return;
+        }
+
+        const vehicle = await createVehicle(accessToken, {
+          plateNumber: vehicleForm.plateNumber,
+          driverId: vehicleForm.driverId || undefined
+        });
+        setVehicleForm({
+          vehicleId: vehicle.id,
+          plateNumber: vehicle.plateNumber,
+          driverId: vehicle.driverId ?? ""
+        });
+      },
+      t("vehicleSaved")
+    );
+  }
+
+  async function submitCancelInvoice(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (!accessToken || !cancelInvoiceForm.invoiceId) return;
+    if (!window.confirm(t("cancelInvoiceConfirm"))) return;
+
+    await runAction(
+      async () => {
+        await cancelInvoice(accessToken, cancelInvoiceForm.invoiceId, {
+          note: cancelInvoiceForm.note || undefined
+        });
+        setCancelInvoiceForm({ invoiceId: "", note: "" });
+      },
+      t("invoiceCancelled")
+    );
+  }
+
   async function submitCreateProduct(event?: FormEvent<HTMLFormElement>) {
     event?.preventDefault();
     if (!accessToken) return;
@@ -1179,6 +1306,66 @@ export default function Home() {
         await deleteCustomer(accessToken, target.id);
       },
       t("customerDeleted")
+    );
+  }
+
+  async function removePayment(target: Payment) {
+    if (!accessToken || !isAccountAdmin) return;
+    if (!window.confirm(t("deletePaymentConfirm"))) return;
+
+    await runAction(
+      async () => {
+        await deletePayment(accessToken, target.id);
+      },
+      t("paymentDeleted")
+    );
+  }
+
+  async function toggleWarehouseStatus(target: ApiWarehouse) {
+    if (!accessToken) return;
+
+    await runAction(
+      async () => {
+        await updateWarehouse(accessToken, target.id, { isActive: !target.isActive });
+      },
+      target.isActive ? t("warehouseDeactivated") : t("warehouseReactivated")
+    );
+  }
+
+  async function removeWarehouse(target: ApiWarehouse) {
+    if (!accessToken) return;
+    if (!window.confirm(t("deleteWarehouseConfirm"))) return;
+
+    await runAction(
+      async () => {
+        await deleteWarehouse(accessToken, target.id);
+        setWarehouseForm({ warehouseId: "", name: "", location: "" });
+      },
+      t("warehouseDeleted")
+    );
+  }
+
+  async function toggleVehicleStatus(target: ApiVehicle) {
+    if (!accessToken) return;
+
+    await runAction(
+      async () => {
+        await updateVehicle(accessToken, target.id, { isActive: !target.isActive });
+      },
+      target.isActive ? t("vehicleDeactivated") : t("vehicleReactivated")
+    );
+  }
+
+  async function removeVehicle(target: ApiVehicle) {
+    if (!accessToken) return;
+    if (!window.confirm(t("deleteVehicleConfirm"))) return;
+
+    await runAction(
+      async () => {
+        await deleteVehicle(accessToken, target.id);
+        setVehicleForm({ vehicleId: "", plateNumber: "", driverId: "" });
+      },
+      t("vehicleDeleted")
     );
   }
 
@@ -1803,6 +1990,7 @@ export default function Home() {
                     <th>{t("amount")}</th>
                     <th>{t("reference")}</th>
                     <th>{t("recorded")}</th>
+                    {isAccountAdmin ? <th>{t("action")}</th> : null}
                   </tr>
                 </thead>
                 <tbody>
@@ -1813,11 +2001,25 @@ export default function Home() {
                       <td>{money(payment.amount)}</td>
                       <td>{payment.reference}</td>
                       <td>{payment.recordedAt}</td>
+                      {isAccountAdmin ? (
+                        <td>
+                          <button
+                            aria-label={t("deletePayment")}
+                            className="ghost-button danger-button inline-button"
+                            disabled={isActionSubmitting}
+                            onClick={() => void removePayment(payment)}
+                            title={t("deletePayment")}
+                            type="button"
+                          >
+                            <Trash2 size={14} aria-hidden="true" />
+                          </button>
+                        </td>
+                      ) : null}
                     </tr>
                   ))}
                   {displayedPayments.length === 0 ? (
                     <tr>
-                      <td className="table-state" colSpan={5}>
+                      <td className="table-state" colSpan={isAccountAdmin ? 6 : 5}>
                         {isLiveDataLoading ? t("loadingData") : t("noRecords")}
                       </td>
                     </tr>
@@ -1826,6 +2028,56 @@ export default function Home() {
                   </table>
                 </div>
               </article>
+              ) : null}
+
+              {activeSection === "payments" && isAccountAdmin ? (
+                <article className="panel">
+                  <div className="panel-header">
+                    <div>
+                      <h3>{t("invoiceCorrections")}</h3>
+                      <span>{t("invoiceCorrectionNote")}</span>
+                    </div>
+                    <ReceiptText size={18} color="var(--brand)" aria-hidden="true" />
+                  </div>
+                  <div className="panel-body">
+                    <form className="entry-form tight-form" onSubmit={submitCancelInvoice}>
+                      <div className="form-grid">
+                        <label>
+                          <span>{t("invoice")}</span>
+                          <select
+                            required
+                            value={cancelInvoiceForm.invoiceId}
+                            onChange={(event) =>
+                              setCancelInvoiceForm((current) => ({ ...current, invoiceId: event.target.value }))
+                            }
+                          >
+                            {apiInvoices
+                              .filter((invoice) => invoice.status !== "CANCELLED" && invoice.payments.length === 0)
+                              .map((invoice) => (
+                                <option key={invoice.id} value={invoice.id}>
+                                  {invoice.invoiceNumber} - {invoice.customer.name} - {money(asNumber(invoice.totalAmount))}
+                                </option>
+                              ))}
+                          </select>
+                        </label>
+                        <label>
+                          <span>{t("note")}</span>
+                          <input
+                            value={cancelInvoiceForm.note}
+                            onChange={(event) =>
+                              setCancelInvoiceForm((current) => ({ ...current, note: event.target.value }))
+                            }
+                          />
+                        </label>
+                      </div>
+                      <div className="modal-actions">
+                        <button className="ghost-button danger-button" disabled={isActionSubmitting} type="submit">
+                          {isActionSubmitting ? t("saving") : t("cancelInvoice")}
+                        </button>
+                      </div>
+                    </form>
+                  </div>
+                </article>
               ) : null}
 
 	              {activeSection === "settings" ? (
@@ -1921,6 +2173,239 @@ export default function Home() {
 	                          </button>
 	                        </div>
 	                      </form>
+	                    </div>
+	                  </article>
+	                ) : null}
+
+	                {isAccountAdmin ? (
+	                  <article className="panel">
+	                    <div className="panel-header">
+	                      <div>
+	                        <h3>{t("warehouseManagement")}</h3>
+	                        <span>{t("warehouseManagementNote")}</span>
+	                      </div>
+	                      <Boxes size={18} color="var(--brand)" aria-hidden="true" />
+	                    </div>
+	                    <div className="panel-body">
+	                      <form className="entry-form tight-form" onSubmit={submitWarehouse}>
+	                        <div className="form-grid">
+	                          <label>
+	                            <span>{t("selectedWarehouse")}</span>
+	                            <select
+	                              value={warehouseForm.warehouseId}
+	                              onChange={(event) => {
+	                                const warehouse = apiWarehouses.find((entry) => entry.id === event.target.value);
+	                                setWarehouseForm({
+	                                  warehouseId: warehouse?.id ?? "",
+	                                  name: warehouse?.name ?? "",
+	                                  location: warehouse?.location ?? ""
+	                                });
+	                              }}
+	                            >
+	                              <option value="">{t("createWarehouse")}</option>
+	                              {apiWarehouses.map((warehouse) => (
+	                                <option key={warehouse.id} value={warehouse.id}>
+	                                  {warehouse.name}
+	                                </option>
+	                              ))}
+	                            </select>
+	                          </label>
+	                          <label>
+	                            <span>{t("warehouse")}</span>
+	                            <input
+	                              required
+	                              value={warehouseForm.name}
+	                              onChange={(event) => setWarehouseForm((current) => ({ ...current, name: event.target.value }))}
+	                            />
+	                          </label>
+	                          <label>
+	                            <span>{t("location")}</span>
+	                            <input
+	                              value={warehouseForm.location}
+	                              onChange={(event) => setWarehouseForm((current) => ({ ...current, location: event.target.value }))}
+	                            />
+	                          </label>
+	                        </div>
+	                        <div className="modal-actions">
+	                          <button className="primary-button" disabled={isActionSubmitting} type="submit">
+	                            {isActionSubmitting ? t("saving") : t("saveWarehouse")}
+	                          </button>
+	                          <button
+	                            className="ghost-button"
+	                            disabled={isActionSubmitting || !warehouseForm.warehouseId}
+	                            onClick={() => setWarehouseForm({ warehouseId: "", name: "", location: "" })}
+	                            type="button"
+	                          >
+	                            {t("createWarehouse")}
+	                          </button>
+	                        </div>
+	                      </form>
+
+	                      <div className="table-wrap">
+	                        <table>
+	                          <thead>
+	                            <tr>
+	                              <th>{t("warehouse")}</th>
+	                              <th>{t("location")}</th>
+	                              <th>{t("status")}</th>
+	                              <th>{t("action")}</th>
+	                            </tr>
+	                          </thead>
+	                          <tbody>
+	                            {apiWarehouses.map((warehouse) => (
+	                              <tr key={warehouse.id}>
+	                                <td>{warehouse.name}</td>
+	                                <td>{warehouse.location ?? "-"}</td>
+	                                <td>
+	                                  <span className={`badge ${warehouse.isActive ? "good" : "danger"}`}>
+	                                    {warehouse.isActive ? t("active") : t("inactive")}
+	                                  </span>
+	                                </td>
+	                                <td>
+	                                  <button
+	                                    className="ghost-button inline-button"
+	                                    disabled={isActionSubmitting}
+	                                    onClick={() => void toggleWarehouseStatus(warehouse)}
+	                                    type="button"
+	                                  >
+	                                    {warehouse.isActive ? t("deactivate") : t("reactivate")}
+	                                  </button>
+	                                  <button
+	                                    aria-label={t("deleteWarehouse")}
+	                                    className="ghost-button danger-button inline-button"
+	                                    disabled={isActionSubmitting}
+	                                    onClick={() => void removeWarehouse(warehouse)}
+	                                    title={t("deleteWarehouse")}
+	                                    type="button"
+	                                  >
+	                                    <Trash2 size={14} aria-hidden="true" />
+	                                  </button>
+	                                </td>
+	                              </tr>
+	                            ))}
+	                          </tbody>
+	                        </table>
+	                      </div>
+	                    </div>
+	                  </article>
+	                ) : null}
+
+	                {isAccountAdmin ? (
+	                  <article className="panel">
+	                    <div className="panel-header">
+	                      <div>
+	                        <h3>{t("vehicleManagement")}</h3>
+	                        <span>{t("vehicleManagementNote")}</span>
+	                      </div>
+	                      <Truck size={18} color="var(--brand)" aria-hidden="true" />
+	                    </div>
+	                    <div className="panel-body">
+	                      <form className="entry-form tight-form" onSubmit={submitVehicle}>
+	                        <div className="form-grid">
+	                          <label>
+	                            <span>{t("selectedVehicle")}</span>
+	                            <select
+	                              value={vehicleForm.vehicleId}
+	                              onChange={(event) => {
+	                                const vehicle = apiVehicles.find((entry) => entry.id === event.target.value);
+	                                setVehicleForm({
+	                                  vehicleId: vehicle?.id ?? "",
+	                                  plateNumber: vehicle?.plateNumber ?? "",
+	                                  driverId: vehicle?.driverId ?? ""
+	                                });
+	                              }}
+	                            >
+	                              <option value="">{t("createVehicle")}</option>
+	                              {apiVehicles.map((vehicle) => (
+	                                <option key={vehicle.id} value={vehicle.id}>
+	                                  {vehicle.plateNumber}
+	                                </option>
+	                              ))}
+	                            </select>
+	                          </label>
+	                          <label>
+	                            <span>{t("truck")}</span>
+	                            <input
+	                              required
+	                              value={vehicleForm.plateNumber}
+	                              onChange={(event) => setVehicleForm((current) => ({ ...current, plateNumber: event.target.value }))}
+	                            />
+	                          </label>
+	                          <label>
+	                            <span>{t("driver")}</span>
+	                            <select
+	                              value={vehicleForm.driverId}
+	                              onChange={(event) => setVehicleForm((current) => ({ ...current, driverId: event.target.value }))}
+	                            >
+	                              <option value="">{t("unassigned")}</option>
+	                              {driverUsers.map((driver) => (
+	                                <option key={driver.id} value={driver.id}>
+	                                  {driver.fullName}
+	                                </option>
+	                              ))}
+	                            </select>
+	                          </label>
+	                        </div>
+	                        <div className="modal-actions">
+	                          <button className="primary-button" disabled={isActionSubmitting} type="submit">
+	                            {isActionSubmitting ? t("saving") : t("saveVehicle")}
+	                          </button>
+	                          <button
+	                            className="ghost-button"
+	                            disabled={isActionSubmitting || !vehicleForm.vehicleId}
+	                            onClick={() => setVehicleForm({ vehicleId: "", plateNumber: "", driverId: "" })}
+	                            type="button"
+	                          >
+	                            {t("createVehicle")}
+	                          </button>
+	                        </div>
+	                      </form>
+
+	                      <div className="table-wrap">
+	                        <table>
+	                          <thead>
+	                            <tr>
+	                              <th>{t("truck")}</th>
+	                              <th>{t("driver")}</th>
+	                              <th>{t("status")}</th>
+	                              <th>{t("action")}</th>
+	                            </tr>
+	                          </thead>
+	                          <tbody>
+	                            {apiVehicles.map((vehicle) => (
+	                              <tr key={vehicle.id}>
+	                                <td>{vehicle.plateNumber}</td>
+	                                <td>{vehicle.driver?.fullName ?? "-"}</td>
+	                                <td>
+	                                  <span className={`badge ${vehicle.isActive ? "good" : "danger"}`}>
+	                                    {vehicle.isActive ? t("active") : t("inactive")}
+	                                  </span>
+	                                </td>
+	                                <td>
+	                                  <button
+	                                    className="ghost-button inline-button"
+	                                    disabled={isActionSubmitting}
+	                                    onClick={() => void toggleVehicleStatus(vehicle)}
+	                                    type="button"
+	                                  >
+	                                    {vehicle.isActive ? t("deactivate") : t("reactivate")}
+	                                  </button>
+	                                  <button
+	                                    aria-label={t("deleteVehicle")}
+	                                    className="ghost-button danger-button inline-button"
+	                                    disabled={isActionSubmitting}
+	                                    onClick={() => void removeVehicle(vehicle)}
+	                                    title={t("deleteVehicle")}
+	                                    type="button"
+	                                  >
+	                                    <Trash2 size={14} aria-hidden="true" />
+	                                  </button>
+	                                </td>
+	                              </tr>
+	                            ))}
+	                          </tbody>
+	                        </table>
+	                      </div>
 	                    </div>
 	                  </article>
 	                ) : null}
@@ -2814,7 +3299,7 @@ export default function Home() {
                       value={deliveryForm.vehicleId}
                       onChange={(event) => setDeliveryForm((current) => ({ ...current, vehicleId: event.target.value }))}
                     >
-                      {apiVehicles.map((vehicle) => (
+                      {activeVehicles.map((vehicle) => (
                         <option key={vehicle.id} value={vehicle.id}>
                           {vehicle.plateNumber}
                         </option>

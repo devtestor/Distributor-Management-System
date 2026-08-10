@@ -86,4 +86,53 @@ describe("PaymentsService", () => {
 
     assert.deepEqual(calls, []);
   });
+
+  it("deletes a payment correction, refreshes invoice status, and audits", async () => {
+    const calls: string[] = [];
+    const tx = {
+      payment: {
+        delete: async () => {
+          calls.push("payment.delete");
+          return { id: "payment-1" };
+        }
+      },
+      invoice: {
+        findUnique: async () => ({
+          id: "invoice-1",
+          totalAmount: 100,
+          payments: []
+        }),
+        update: async ({ data }: { data: { paymentStatus: PaymentStatus } }) => {
+          calls.push(`invoice.update:${data.paymentStatus}`);
+          return { id: "invoice-1" };
+        }
+      },
+      auditLog: {
+        create: async () => {
+          calls.push("auditLog.create");
+          return { id: "audit-1" };
+        }
+      }
+    };
+    const prisma = {
+      payment: {
+        findUnique: async () => ({
+          id: "payment-1",
+          companyId: "company-1",
+          customerId: "customer-1",
+          customer: { name: "Customer" },
+          invoiceId: "invoice-1",
+          method: PaymentMethod.CASH,
+          amount: 25,
+          reference: "wrong"
+        })
+      },
+      $transaction: async (callback: (transaction: typeof tx) => Promise<unknown>) => callback(tx)
+    };
+    const service = new PaymentsService(prisma as never);
+
+    await service.delete("payment-1", "user-1", "company-1");
+
+    assert.deepEqual(calls, ["payment.delete", "invoice.update:UNPAID", "auditLog.create"]);
+  });
 });

@@ -131,6 +131,14 @@ export type ApiWarehouseStockItem = {
   needsReorder: boolean;
 };
 
+export type ApiWarehouse = {
+  id: string;
+  name: string;
+  location: string | null;
+  isActive: boolean;
+  createdAt: string;
+};
+
 export type ApiCustomer = {
   id: string;
   name: string;
@@ -477,6 +485,39 @@ export function getWarehouseStock(accessToken: string, warehouseId: string) {
   });
 }
 
+export function getWarehouses(accessToken: string) {
+  return request<ApiWarehouse[]>("/warehouses", {
+    headers: authHeaders(accessToken)
+  });
+}
+
+export function createWarehouse(accessToken: string, payload: { name: string; location?: string }) {
+  return request<ApiWarehouse>("/warehouses", {
+    method: "POST",
+    headers: authHeaders(accessToken),
+    body: JSON.stringify(payload)
+  });
+}
+
+export function updateWarehouse(
+  accessToken: string,
+  warehouseId: string,
+  payload: { name?: string; location?: string; isActive?: boolean }
+) {
+  return request<ApiWarehouse>(`/warehouses/${warehouseId}`, {
+    method: "PATCH",
+    headers: authHeaders(accessToken),
+    body: JSON.stringify(payload)
+  });
+}
+
+export function deleteWarehouse(accessToken: string, warehouseId: string) {
+  return request<{ id: string; deletedById: string }>(`/warehouses/${warehouseId}`, {
+    method: "DELETE",
+    headers: authHeaders(accessToken)
+  });
+}
+
 export function getCustomers(accessToken: string) {
   return request<ApiCustomer[]>("/customers", {
     headers: authHeaders(accessToken)
@@ -571,6 +612,13 @@ export function getDebtAging(accessToken: string) {
 
 export function getPayments(accessToken: string) {
   return request<ApiPayment[]>("/payments", {
+    headers: authHeaders(accessToken)
+  });
+}
+
+export function deletePayment(accessToken: string, paymentId: string) {
+  return request<{ id: string; deletedById: string }>(`/payments/${paymentId}`, {
+    method: "DELETE",
     headers: authHeaders(accessToken)
   });
 }
@@ -681,6 +729,14 @@ export function createInvoice(
   });
 }
 
+export function cancelInvoice(accessToken: string, invoiceId: string, payload: { note?: string } = {}) {
+  return request<ApiInvoice>(`/invoices/${invoiceId}/cancel`, {
+    method: "POST",
+    headers: authHeaders(accessToken),
+    body: JSON.stringify(payload)
+  });
+}
+
 export function recordPayment(
   accessToken: string,
   payload: {
@@ -737,6 +793,33 @@ export function createDeliveryTrip(
     method: "POST",
     headers: authHeaders(accessToken),
     body: JSON.stringify(payload)
+  });
+}
+
+export function createVehicle(accessToken: string, payload: { plateNumber: string; driverId?: string }) {
+  return request<ApiVehicle>("/deliveries/trips/vehicles", {
+    method: "POST",
+    headers: authHeaders(accessToken),
+    body: JSON.stringify(payload)
+  });
+}
+
+export function updateVehicle(
+  accessToken: string,
+  vehicleId: string,
+  payload: { plateNumber?: string; driverId?: string; isActive?: boolean }
+) {
+  return request<ApiVehicle>(`/deliveries/trips/vehicles/${vehicleId}`, {
+    method: "PATCH",
+    headers: authHeaders(accessToken),
+    body: JSON.stringify(payload)
+  });
+}
+
+export function deleteVehicle(accessToken: string, vehicleId: string) {
+  return request<{ id: string; deletedById: string }>(`/deliveries/trips/vehicles/${vehicleId}`, {
+    method: "DELETE",
+    headers: authHeaders(accessToken)
   });
 }
 

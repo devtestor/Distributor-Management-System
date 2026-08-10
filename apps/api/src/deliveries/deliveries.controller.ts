@@ -1,9 +1,11 @@
-import { Body, Controller, Get, Inject, Param, Post, Query, Req } from "@nestjs/common";
+import { Body, Controller, Delete, Get, Inject, Param, Patch, Post, Query, Req } from "@nestjs/common";
 import type { AuthenticatedRequest } from "../common/authenticated-request";
 import type { PaginationQuery } from "../common/pagination";
 import { Roles } from "../common/roles.decorator";
 import { CreateDeliveryTripDto } from "./dto/create-delivery-trip.dto";
+import { CreateVehicleDto } from "./dto/create-vehicle.dto";
 import { ReconcileDeliveryTripDto } from "./dto/reconcile-delivery-trip.dto";
+import { UpdateVehicleDto } from "./dto/update-vehicle.dto";
 import { DeliveriesService } from "./deliveries.service";
 
 @Controller("deliveries/trips")
@@ -20,6 +22,24 @@ export class DeliveriesController {
   @Get("vehicles")
   vehicles(@Req() request: AuthenticatedRequest) {
     return this.deliveriesService.listVehicles(request.user.companyId);
+  }
+
+  @Roles("OWNER", "ADMIN")
+  @Post("vehicles")
+  createVehicle(@Body() dto: CreateVehicleDto, @Req() request: AuthenticatedRequest) {
+    return this.deliveriesService.createVehicle(dto, request.user.id, request.user.companyId);
+  }
+
+  @Roles("OWNER", "ADMIN")
+  @Patch("vehicles/:id")
+  updateVehicle(@Param("id") id: string, @Body() dto: UpdateVehicleDto, @Req() request: AuthenticatedRequest) {
+    return this.deliveriesService.updateVehicle(id, dto, request.user.id, request.user.companyId);
+  }
+
+  @Roles("OWNER", "ADMIN")
+  @Delete("vehicles/:id")
+  deleteVehicle(@Param("id") id: string, @Req() request: AuthenticatedRequest) {
+    return this.deliveriesService.deleteVehicle(id, request.user.id, request.user.companyId);
   }
 
   @Roles("OWNER", "ADMIN", "WAREHOUSE_MANAGER")

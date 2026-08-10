@@ -3,7 +3,9 @@ import { DeliveryStatus, Prisma, StockMovementType } from "@prisma/client";
 import { PrismaService } from "../prisma/prisma.service";
 import { paginationArgs, type PaginationQuery } from "../common/pagination";
 import { CreateDeliveryTripDto } from "./dto/create-delivery-trip.dto";
+import { CreateVehicleDto } from "./dto/create-vehicle.dto";
 import { ReconcileDeliveryTripDto } from "./dto/reconcile-delivery-trip.dto";
+import { UpdateVehicleDto } from "./dto/update-vehicle.dto";
 
 @Injectable()
 export class DeliveriesService {
@@ -20,10 +22,127 @@ export class DeliveriesService {
 
   listVehicles(companyId: string) {
     return this.prisma.vehicle.findMany({
-      where: { companyId, isActive: true },
+      where: { companyId },
       include: { driver: true },
       orderBy: { plateNumber: "asc" }
     });
+  }
+
+  async createVehicle(dto: CreateVehicleDto, actorUserId: string, companyId: string) {
+    if (dto.driverId) {
+      await this.assertDriverCanBeAssigned(dto.driverId, companyId);
+    }
+
+    try {
+      const vehicle = await this.prisma.vehicle.create({
+        data: {
+          companyId,
+          plateNumber: dto.plateNumber,
+          driverId: dto.driverId
+        },
+        include: { driver: true }
+      });
+
+      await this.prisma.auditLog.create({
+        data: {
+          userId: actorUserId,
+          companyId,
+          action: "VEHICLE_CREATED",
+          entity: "Vehicle",
+          entityId: vehicle.id,
+          metadata: {
+            plateNumber: vehicle.plateNumber,
+            driverId: vehicle.driverId
+          }
+        }
+      });
+
+      return vehicle;
+    } catch (error) {
+      if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2002") {
+        throw new BadRequestException("Vehicle plate number already exists");
+      }
+      throw error;
+    }
+  }
+
+  async updateVehicle(vehicleId: string, dto: UpdateVehicleDto, actorUserId: string, companyId: string) {
+    const vehicle = await this.prisma.vehicle.findUnique({
+      where: { id: vehicleId, companyId }
+    });
+    if (!vehicle) throw new NotFoundException("Vehicle not found");
+
+    if (dto.driverId) {
+      await this.assertDriverCanBeAssigned(dto.driverId, companyId);
+    }
+
+    try {
+      const updated = await this.prisma.vehicle.update({
+        where: { id: vehicleId, companyId },
+        data: {
+          plateNumber: dto.plateNumber,
+          driverId: dto.driverId === "" ? null : dto.driverId,
+          isActive: dto.isActive
+        },
+        include: { driver: true }
+      });
+
+      await this.prisma.auditLog.create({
+        data: {
+          userId: actorUserId,
+          companyId,
+          action: "VEHICLE_UPDATED",
+          entity: "Vehicle",
+          entityId: updated.id,
+          metadata: {
+            plateNumber: updated.plateNumber,
+            driverId: updated.driverId,
+            isActive: updated.isActive
+          }
+        }
+      });
+
+      return updated;
+    } catch (error) {
+      if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2002") {
+        throw new BadRequestException("Vehicle plate number already exists");
+      }
+      throw error;
+    }
+  }
+
+  async deleteVehicle(vehicleId: string, actorUserId: string, companyId: string) {
+    const vehicle = await this.prisma.vehicle.findUnique({
+      where: { id: vehicleId, companyId },
+      include: { _count: { select: { trips: true } } }
+    });
+    if (!vehicle) throw new NotFoundException("Vehicle not found");
+    if (vehicle._count.trips > 0) {
+      throw new BadRequestException("This vehicle has delivery history. Deactivate it instead.");
+    }
+
+    await this.prisma.vehicle.delete({
+      where: { id: vehicleId, companyId }
+    });
+
+    await this.prisma.auditLog.create({
+      data: {
+        userId: actorUserId,
+        companyId,
+        action: "VEHICLE_DELETED",
+        entity: "Vehicle",
+        entityId: vehicle.id,
+        metadata: {
+          plateNumber: vehicle.plateNumber,
+          driverId: vehicle.driverId
+        }
+      }
+    });
+
+    return {
+      id: vehicle.id,
+      deletedById: actorUserId
+    };
   }
 
   async create(dto: CreateDeliveryTripDto, actorUserId: string, actorRole: string, companyId: string) {
@@ -228,6 +347,16 @@ export class DeliveriesService {
 
     if (input.allowNegativeStock && (input.actorRole === "OWNER" || input.actorRole === "ADMIN")) return;
     throw new BadRequestException("Truck load would make warehouse inventory negative");
+  }
+
+  private async assertDriverCanBeAssigned(driverId: string, companyId: string) {
+    const driver = await this.prisma.user.findUnique({
+      where: { id: driverId, companyId },
+      include: { role: true }
+    });
+    if (!driver) throw new NotFoundException("Driver not found");
+    if (driver.role.name !== "DRIVER") throw new BadRequestException("Selected user must have the DRIVER role");
+    if (!driver.isActive) throw new BadRequestException("Selected driver account is inactive");
   }
 
   private signedQuantity(movementType: StockMovementType, quantity: number) {

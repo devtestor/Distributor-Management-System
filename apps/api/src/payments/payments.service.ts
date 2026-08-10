@@ -82,6 +82,47 @@ export class PaymentsService {
     });
   }
 
+  async delete(paymentId: string, actorUserId: string, companyId: string) {
+    const payment = await this.prisma.payment.findUnique({
+      where: { id: paymentId, companyId },
+      include: { customer: true }
+    });
+    if (!payment) throw new NotFoundException("Payment not found");
+
+    await this.prisma.$transaction(async (tx) => {
+      await tx.payment.delete({
+        where: { id: paymentId, companyId }
+      });
+
+      if (payment.invoiceId) {
+        await this.refreshInvoicePaymentStatus(payment.invoiceId, companyId, tx);
+      }
+
+      await tx.auditLog.create({
+        data: {
+          userId: actorUserId,
+          companyId,
+          action: "PAYMENT_DELETED",
+          entity: "Payment",
+          entityId: payment.id,
+          metadata: {
+            customerId: payment.customerId,
+            customerName: payment.customer.name,
+            invoiceId: payment.invoiceId,
+            method: payment.method,
+            amount: Number(payment.amount),
+            reference: payment.reference
+          }
+        }
+      });
+    });
+
+    return {
+      id: payment.id,
+      deletedById: actorUserId
+    };
+  }
+
   private async refreshInvoicePaymentStatus(invoiceId: string, companyId: string, tx: Prisma.TransactionClient) {
     const invoice = await tx.invoice.findUnique({
       where: { id: invoiceId, companyId },
