@@ -588,15 +588,17 @@ export default function Home() {
   const activeNavItem = navItems.find((item) => item.key === activeSection) ?? navItems[0];
 
   const kpis = [
+    { label: t("emptyLiability"), value: metrics.emptyLiability.toLocaleString(), icon: RotateCcw },
     { label: t("stockValue"), value: money(metrics.stockValue), icon: Boxes },
     { label: t("cashCollected"), value: money(metrics.cashCollected), icon: Banknote },
     { label: t("creditExposure"), value: money(metrics.creditExposure), icon: CreditCard },
-    { label: t("emptyLiability"), value: metrics.emptyLiability.toLocaleString(), icon: RotateCcw },
     { label: t("activeDeliveries"), value: metrics.activeDeliveries.toString(), icon: Truck }
   ];
 
   const criticalCreditCustomers = displayedCustomers.filter((customer) => customer.outstanding / customer.creditLimit >= 0.8);
-  const highEmptiesCustomers = displayedCustomers.filter((customer) => customer.emptiesBalance > 250);
+  const highEmptiesCustomers = displayedCustomers
+    .filter((customer) => customer.emptiesBalance > 0)
+    .sort((left, right) => right.emptiesBalance - left.emptiesBalance);
 
   const quickActions = [
     { key: "stock" as const, label: t("receiveStock"), icon: PackagePlus, roles: ["OWNER", "ADMIN", "WAREHOUSE_MANAGER"] as NavRole[] },
@@ -1473,7 +1475,12 @@ export default function Home() {
                     alertEmpties: t("alertEmpties"),
                     alertLowStock: t("alertLowStock"),
                     alerts: t("alerts"),
+                    bottlesAtRisk: t("bottlesAtRisk"),
+                    collectionPriority: t("collectionPriority"),
                     empties: t("empties"),
+                    emptiesControl: t("emptiesControl"),
+                    emptiesControlNote: t("emptiesControlNote"),
+                    emptiesRecoveredAction: t("emptiesRecoveredAction"),
                     healthy: t("healthy"),
                     inventory: t("inventory"),
                     liveEntry: t("liveEntry"),
@@ -1491,9 +1498,11 @@ export default function Home() {
                     stock: t("stock"),
                     watch: t("watch")
                   }}
+                  highEmptiesCustomers={highEmptiesCustomers}
                   lowStockCount={metrics.lowStock}
                   products={displayedProducts}
                   quickActions={quickActions}
+                  totalEmptiesOutstanding={metrics.emptyLiability}
                   onOpenAction={openActionModal}
                 />
               ) : null}

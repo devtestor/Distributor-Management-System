@@ -1,6 +1,7 @@
 import {
   AlertTriangle,
   Boxes,
+  ClipboardCheck,
   CreditCard,
   Languages,
   RotateCcw,
@@ -9,6 +10,7 @@ import {
 import type { ActionType } from "@/lib/dashboard-helpers";
 import { getProductStatus, money } from "@/lib/dashboard-helpers";
 import type { Product } from "@/lib/types";
+import type { Customer } from "@/lib/types";
 
 type QuickAction = {
   key: Exclude<ActionType, null>;
@@ -21,7 +23,12 @@ type DashboardOverviewLabels = {
   alertEmpties: string;
   alertLowStock: string;
   alerts: string;
+  bottlesAtRisk: string;
+  collectionPriority: string;
   empties: string;
+  emptiesControl: string;
+  emptiesControlNote: string;
+  emptiesRecoveredAction: string;
   healthy: string;
   inventory: string;
   liveEntry: string;
@@ -44,11 +51,13 @@ type DashboardOverviewProps = {
   canUseLiveActions: boolean;
   criticalCreditCount: number;
   highEmptiesCount: number;
+  highEmptiesCustomers: Customer[];
   isLiveDataLoading: boolean;
   labels: DashboardOverviewLabels;
   lowStockCount: number;
   products: Product[];
   quickActions: QuickAction[];
+  totalEmptiesOutstanding: number;
   onOpenAction: (action: Exclude<ActionType, null>) => void;
 };
 
@@ -56,15 +65,62 @@ export function DashboardOverview({
   canUseLiveActions,
   criticalCreditCount,
   highEmptiesCount,
+  highEmptiesCustomers,
   isLiveDataLoading,
   labels,
   lowStockCount,
   products,
   quickActions,
+  totalEmptiesOutstanding,
   onOpenAction
 }: DashboardOverviewProps) {
+  const topEmptiesCustomers = highEmptiesCustomers.slice(0, 5);
+
   return (
-    <section className="section-grid">
+    <section className="dashboard-stack">
+      <article className="empties-spotlight">
+        <div className="empties-copy">
+          <span className="feature-kicker">{labels.emptiesControl}</span>
+          <h3>{totalEmptiesOutstanding.toLocaleString()}</h3>
+          <p>{labels.emptiesControlNote}</p>
+          <div className="empties-actions">
+            <button
+              className="primary-button"
+              disabled={!canUseLiveActions}
+              onClick={() => onOpenAction("reconcile")}
+              type="button"
+            >
+              <ClipboardCheck size={17} aria-hidden="true" />
+              {labels.emptiesRecoveredAction}
+            </button>
+            <span>
+              {highEmptiesCount} {labels.bottlesAtRisk}
+            </span>
+          </div>
+        </div>
+        <div className="empties-priority">
+          <div className="priority-header">
+            <strong>{labels.collectionPriority}</strong>
+            <span>{labels.empties}</span>
+          </div>
+          <div className="priority-list">
+            {topEmptiesCustomers.map((customer) => (
+              <div className="priority-row" key={customer.id}>
+                <span>
+                  <strong>{customer.name}</strong>
+                  <small>{customer.route}</small>
+                </span>
+                <b>{customer.emptiesBalance.toLocaleString()}</b>
+              </div>
+            ))}
+            {topEmptiesCustomers.length === 0 ? (
+              <div className="priority-empty">{isLiveDataLoading ? labels.loadingData : labels.noRecords}</div>
+            ) : null}
+          </div>
+        </div>
+      </article>
+
+      <section className="section-grid">
       <article className="panel">
         <div className="panel-header">
           <div>
@@ -183,6 +239,7 @@ export function DashboardOverview({
           </div>
         </article>
       </aside>
+      </section>
     </section>
   );
 }
