@@ -141,10 +141,17 @@ function normalizePackageType(packageType: string): Product["packageType"] {
   return "PET pack";
 }
 
+export function formatDeliveryArea(value: string | null | undefined) {
+  const label = value?.trim() || "-";
+  return label.replace(/\broute\b/gi, "area");
+}
+
 function normalizeDeliveryStatus(status: string): Delivery["status"] {
-  if (status === "LOADING") return "Loading";
-  if (status === "ON_ROUTE") return "On route";
-  return "Reconciliation";
+  if (status === "LOADING") return "Preparing";
+  if (status === "ON_ROUTE") return "Out for delivery";
+  if (status === "CLOSED") return "Closed";
+  if (status === "CANCELLED") return "Cancelled";
+  return "Awaiting truck return";
 }
 
 function normalizePaymentMethod(method: string): Payment["method"] {
@@ -182,7 +189,7 @@ export function mapLiveDelivery(trip: ApiDeliveryTrip): Delivery {
   return {
     id: trip.id,
     driver: trip.driver.fullName,
-    route: trip.route,
+    route: formatDeliveryArea(trip.route),
     truck: trip.vehicle.plateNumber,
     loadedValue,
     deliveredValue,

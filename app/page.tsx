@@ -105,6 +105,7 @@ import {
   emptyDeliveryLoadItem,
   emptyInvoiceItem,
   emptyProductForm,
+  formatDeliveryArea,
   formatToday,
   MAIN_WAREHOUSE_ID,
   mapLiveDelivery,
@@ -419,7 +420,7 @@ export default function Home() {
         const balances: Customer[] = rawCustomers.map((customer) => ({
           id: customer.id,
           name: customer.name,
-          route: customer.route ?? "-",
+          route: formatDeliveryArea(customer.route),
           phone: customer.phone ?? "-",
           creditLimit: asNumber(customer.creditLimit),
           outstanding: customer.outstanding ?? 0,
@@ -621,7 +622,9 @@ export default function Home() {
     const cashCollected = displayedDeliveries.reduce((sum, delivery) => sum + delivery.cashCollected, 0);
     const creditExposure = displayedCustomers.reduce((sum, customer) => sum + customer.outstanding, 0);
     const emptyLiability = displayedCustomers.reduce((sum, customer) => sum + customer.emptiesBalance, 0);
-    const activeDeliveries = displayedDeliveries.filter((delivery) => delivery.status !== "Reconciliation").length;
+    const activeDeliveries = displayedDeliveries.filter(
+      (delivery) => delivery.status !== "Awaiting truck return" && delivery.status !== "Closed" && delivery.status !== "Cancelled"
+    ).length;
     const lowStock = displayedProducts.filter((product) => product.stockUnits < product.reorderLevel).length;
 
     return { stockValue, cashCollected, creditExposure, emptyLiability, activeDeliveries, lowStock };
@@ -2034,7 +2037,7 @@ export default function Home() {
                               <td>{new Date(movement.createdAt).toLocaleString("en-RW")}</td>
                               <td>
                                 <strong>{movement.customer.name}</strong>
-                                <small>{movement.customer.route ?? "-"}</small>
+                                <small>{formatDeliveryArea(movement.customer.route)}</small>
                               </td>
                               <td>{titleCaseEnum(movement.movementType)}</td>
                               <td>{movement.product?.name ?? "-"}</td>
@@ -3106,7 +3109,7 @@ export default function Home() {
                           {emptiesReport?.rows.slice(0, 8).map((row) => (
                             <tr key={row.customerId}>
                               <td>{row.customer}</td>
-                              <td>{row.route ?? "-"}</td>
+                              <td>{formatDeliveryArea(row.route)}</td>
                               <td>{row.balance}</td>
                               <td>{row.movements}</td>
                             </tr>
@@ -3800,7 +3803,7 @@ export default function Home() {
                   >
                     {openTrips.map((trip) => (
                       <option key={trip.id} value={trip.id}>
-                        {trip.vehicle.plateNumber} - {trip.route}
+                        {trip.vehicle.plateNumber} - {formatDeliveryArea(trip.route)}
                       </option>
                     ))}
                   </select>
@@ -3809,7 +3812,7 @@ export default function Home() {
                 {selectedTrip ? (
                   <div className="trip-summary">
                     <span>{selectedTrip.driver.fullName}</span>
-                    <span>{selectedTrip.route}</span>
+                    <span>{formatDeliveryArea(selectedTrip.route)}</span>
                   </div>
                 ) : null}
 

@@ -97,7 +97,7 @@ export const customers: Customer[] = [
   {
     id: "c3",
     name: "Musanze Bar & Grill",
-    route: "Northern Route",
+    route: "Northern Area",
     phone: "+250 788 000 336",
     creditLimit: 850000,
     outstanding: 95000,
@@ -107,7 +107,7 @@ export const customers: Customer[] = [
   {
     id: "c4",
     name: "Rubavu Lakeside Depot",
-    route: "Western Route",
+    route: "Western Area",
     phone: "+250 788 000 441",
     creditLimit: 1400000,
     outstanding: 1165000,
@@ -127,7 +127,7 @@ export const deliveries: Delivery[] = [
     cashCollected: 1260000,
     creditIssued: 625000,
     emptiesReturned: 192,
-    status: "On route"
+    status: "Out for delivery"
   },
   {
     id: "d2",
@@ -139,19 +139,19 @@ export const deliveries: Delivery[] = [
     cashCollected: 2445000,
     creditIssued: 740000,
     emptiesReturned: 438,
-    status: "Reconciliation"
+    status: "Awaiting truck return"
   },
   {
     id: "d3",
     driver: "Jean P.",
-    route: "Northern Route",
+    route: "Northern Area",
     truck: "RAC 802L",
     loadedValue: 1540000,
     deliveredValue: 0,
     cashCollected: 0,
     creditIssued: 0,
     emptiesReturned: 0,
-    status: "Loading"
+    status: "Preparing"
   }
 ];
 

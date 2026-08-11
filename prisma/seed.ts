@@ -45,7 +45,7 @@ async function main() {
       ["ADMIN", "System and master data management"],
       ["WAREHOUSE_MANAGER", "Warehouse stock operations"],
       ["SALESPERSON", "Customer orders and collections"],
-      ["DRIVER", "Delivery confirmation and truck reconciliation"],
+      ["DRIVER", "Delivery confirmation and truck return recording"],
       ["ACCOUNTANT", "Payments, expenses, and reports"]
     ].map(([name, description]) =>
       prisma.role.upsert({

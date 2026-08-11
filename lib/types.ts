@@ -36,7 +36,7 @@ export type Delivery = {
   cashCollected: number;
   creditIssued: number;
   emptiesReturned: number;
-  status: "Loading" | "On route" | "Reconciliation";
+  status: "Preparing" | "Out for delivery" | "Awaiting truck return" | "Closed" | "Cancelled";
 };
 
 export type Payment = {
