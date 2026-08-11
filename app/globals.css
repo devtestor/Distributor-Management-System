@@ -695,6 +695,45 @@ td small {
   color: #a42824;
 }
 
+.pill-action {
+  min-height: 28px;
+  border: 0;
+  border-radius: 999px;
+  padding: 0 12px;
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.pill-action.warn {
+  background: #fff0cf;
+  color: #84540a;
+}
+
+.pill-action:not(:disabled):hover,
+.table-action:not(:disabled):hover {
+  filter: brightness(0.96);
+}
+
+.table-action {
+  display: inline-flex;
+  align-items: center;
+  min-height: 28px;
+  margin-left: 8px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  padding: 0 10px;
+  background: var(--surface);
+  color: var(--brand-strong);
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.pill-action:disabled,
+.table-action:disabled {
+  cursor: not-allowed;
+  opacity: 0.55;
+}
+
 .side-stack {
   display: grid;
   gap: 18px;
@@ -841,6 +880,11 @@ td small {
 }
 
 .app-shell[data-theme="dark"] .badge.warn {
+  background: #3b2f15;
+  color: #f0c96d;
+}
+
+.app-shell[data-theme="dark"] .pill-action.warn {
   background: #3b2f15;
   color: #f0c96d;
 }

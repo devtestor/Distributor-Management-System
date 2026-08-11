@@ -1,7 +1,6 @@
 import {
   AlertTriangle,
   Boxes,
-  ClipboardCheck,
   CreditCard,
   Languages,
   RotateCcw,
@@ -40,6 +39,7 @@ type DashboardOverviewLabels = {
   package: string;
   product: string;
   quickActions: string;
+  receiveStock: string;
   reorder: string;
   reorderNow: string;
   status: string;
@@ -87,10 +87,10 @@ export function DashboardOverview({
             <button
               className="primary-button"
               disabled={!canUseLiveActions}
-              onClick={() => onOpenAction("reconcile")}
+              onClick={() => onOpenAction("empties")}
               type="button"
             >
-              <ClipboardCheck size={17} aria-hidden="true" />
+              <RotateCcw size={17} aria-hidden="true" />
               {labels.emptiesRecoveredAction}
             </button>
             <span>
@@ -129,7 +129,14 @@ export function DashboardOverview({
               {lowStockCount} {labels.lowStock.toLowerCase()}
             </span>
           </div>
-          <span className="badge warn">{labels.reorderNow}</span>
+          <button
+            className="pill-action warn"
+            disabled={!canUseLiveActions}
+            onClick={() => onOpenAction("stock")}
+            type="button"
+          >
+            {labels.reorderNow}
+          </button>
         </div>
         <div className="table-wrap">
           <table>
@@ -162,6 +169,16 @@ export function DashboardOverview({
                       <span className={`badge ${status}`}>
                         {status === "good" ? labels.healthy : status === "warn" ? labels.watch : labels.reorderNow}
                       </span>
+                      {status === "danger" ? (
+                        <button
+                          className="table-action"
+                          disabled={!canUseLiveActions}
+                          onClick={() => onOpenAction("stock")}
+                          type="button"
+                        >
+                          {labels.receiveStock}
+                        </button>
+                      ) : null}
                     </td>
                   </tr>
                 );

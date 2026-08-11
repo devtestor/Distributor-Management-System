@@ -1591,6 +1591,7 @@ export default function Home() {
                     package: t("package"),
                     product: t("product"),
                     quickActions: t("quickActions"),
+                    receiveStock: t("receiveStock"),
                     reorder: t("reorder"),
                     reorderNow: t("reorderNow"),
                     status: t("status"),
@@ -3236,10 +3237,10 @@ export default function Home() {
                 </label>
                 <div className="modal-actions">
                   <button className="ghost-button" onClick={closeActionModal} type="button">
-                    Close
+                    {t("close")}
                   </button>
                   <button className="primary-button" disabled={isActionSubmitting} type="submit">
-                    {isActionSubmitting ? "Saving..." : "Record receipt"}
+                    {isActionSubmitting ? t("saving") : t("receiveStock")}
                   </button>
                 </div>
               </form>
@@ -3263,7 +3264,7 @@ export default function Home() {
 
                 <div className="form-section">
                   <div className="form-section-header">
-                    <strong>Items</strong>
+                    <strong>{t("items")}</strong>
                     <button
                       className="ghost-button"
                       onClick={() =>
@@ -3274,7 +3275,7 @@ export default function Home() {
                       }
                       type="button"
                     >
-                      Add item
+                      {t("addItem")}
                     </button>
                   </div>
                   {invoiceForm.items.map((item, index) => (
@@ -3300,7 +3301,7 @@ export default function Home() {
                         </select>
                       </label>
                       <label>
-                        <span>Quantity</span>
+                        <span>{t("quantity")}</span>
                         <input
 	                          min={1}
 	                          onFocus={selectNumberInput}
@@ -3318,7 +3319,7 @@ export default function Home() {
                         />
                       </label>
                       <label>
-                        <span>Discount</span>
+                        <span>{t("discount")}</span>
                         <input
 	                          min={0}
 	                          onFocus={selectNumberInput}
@@ -3348,7 +3349,7 @@ export default function Home() {
                         }
                         type="button"
                       >
-                        Remove
+                        {t("remove")}
                       </button>
                     </div>
                   ))}
@@ -3356,7 +3357,7 @@ export default function Home() {
 
                 <div className="form-grid">
                   <label>
-                    <span>Initial payment method</span>
+                    <span>{t("initialPaymentMethod")}</span>
                     <select
                       value={invoiceForm.initialPaymentMethod}
                       onChange={(event) =>
@@ -3373,7 +3374,7 @@ export default function Home() {
                     </select>
                   </label>
                   <label>
-                    <span>Initial payment amount</span>
+                    <span>{t("initialPaymentAmount")}</span>
                     <input
 	                      min={0}
 	                      onFocus={selectNumberInput}
@@ -3401,10 +3402,10 @@ export default function Home() {
 
                 <div className="modal-actions">
                   <button className="ghost-button" onClick={closeActionModal} type="button">
-                    Close
+                    {t("close")}
                   </button>
                   <button className="primary-button" disabled={isActionSubmitting} type="submit">
-                    {isActionSubmitting ? "Saving..." : "Create invoice"}
+                    {isActionSubmitting ? t("saving") : t("createInvoice")}
                   </button>
                 </div>
 	              </form>
@@ -3634,10 +3635,10 @@ export default function Home() {
 
                 <div className="modal-actions">
                   <button className="ghost-button" onClick={closeActionModal} type="button">
-                    Close
+                    {t("close")}
                   </button>
                   <button className="primary-button" disabled={isActionSubmitting} type="submit">
-                    {isActionSubmitting ? "Saving..." : "Record payment"}
+                    {isActionSubmitting ? t("saving") : t("recordPayment")}
                   </button>
                 </div>
               </form>
@@ -3849,7 +3850,7 @@ export default function Home() {
 
                 <div className="form-section">
                   <div className="form-section-header">
-                    <strong>Loaded items</strong>
+                    <strong>{t("loadedItems")}</strong>
                   </div>
                   {reconcileForm.items.map((item, index) => (
                     <div className="reconcile-row" key={item.itemId}>
@@ -3858,7 +3859,7 @@ export default function Home() {
                         <span>Loaded: {item.loadedQuantity}</span>
                       </div>
                       <label>
-                        <span>Delivered</span>
+                        <span>{t("delivered")}</span>
                         <input
 	                          min={0}
 	                          onFocus={selectNumberInput}
@@ -3878,7 +3879,7 @@ export default function Home() {
                         />
                       </label>
                       <label>
-                        <span>Returned</span>
+                        <span>{t("returned")}</span>
                         <input
 	                          min={0}
 	                          onFocus={selectNumberInput}
@@ -3898,7 +3899,7 @@ export default function Home() {
                         />
                       </label>
                       <label>
-                        <span>Damaged</span>
+                        <span>{t("damaged")}</span>
                         <input
 	                          min={0}
 	                          onFocus={selectNumberInput}
@@ -3923,10 +3924,10 @@ export default function Home() {
 
                 <div className="modal-actions">
                   <button className="ghost-button" onClick={closeActionModal} type="button">
-                    Close
+                    {t("close")}
                   </button>
                   <button className="primary-button" disabled={isActionSubmitting} type="submit">
-                    {isActionSubmitting ? "Saving..." : "Complete reconciliation"}
+                    {isActionSubmitting ? t("saving") : t("reconcileTruck")}
                   </button>
                 </div>
               </form>
