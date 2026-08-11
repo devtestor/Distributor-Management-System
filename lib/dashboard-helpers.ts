@@ -3,6 +3,7 @@ import {
   Boxes,
   FileBarChart,
   Gauge,
+  PackageCheck,
   Settings,
   type LucideIcon,
   Truck,
@@ -15,7 +16,7 @@ import type { Delivery, Locale, Payment, Product } from "@/lib/types";
 export const MAIN_WAREHOUSE_ID = "00000000-0000-0000-0000-000000000001";
 export const OFFLINE_DRAFTS_KEY = "offlineDrafts";
 
-export type ActionType = "stock" | "invoice" | "delivery" | "reconcile" | "payment" | "customer" | null;
+export type ActionType = "stock" | "invoice" | "delivery" | "reconcile" | "payment" | "customer" | "empties" | null;
 
 export type InvoiceFormItem = {
   productId: string;
@@ -39,14 +40,14 @@ export type DeliveryLoadFormItem = {
 
 export type OfflineDraft = {
   id: string;
-  type: "stock" | "invoice" | "payment" | "delivery" | "reconcile";
+  type: "stock" | "invoice" | "payment" | "delivery" | "reconcile" | "empties";
   payload: Record<string, unknown>;
   createdAt: string;
 };
 
 export type NavRole = "OWNER" | "ADMIN" | "WAREHOUSE_MANAGER" | "SALESPERSON" | "DRIVER" | "ACCOUNTANT";
 export type ProductFormMode = "edit" | "create";
-export type NavSection = "dashboard" | "inventory" | "customers" | "deliveries" | "payments" | "reports" | "settings";
+export type NavSection = "dashboard" | "inventory" | "customers" | "deliveries" | "empties" | "payments" | "reports" | "settings";
 
 type NavItemConfig = {
   key: NavSection;
@@ -65,6 +66,12 @@ export const navItemConfig: NavItemConfig[] = [
   { key: "inventory", labelKey: "inventory", icon: Boxes, roles: ["OWNER", "ADMIN", "WAREHOUSE_MANAGER"] },
   { key: "customers", labelKey: "customers", icon: Users, roles: ["OWNER", "ADMIN", "SALESPERSON", "ACCOUNTANT"] },
   { key: "deliveries", labelKey: "deliveries", icon: Truck, roles: ["OWNER", "ADMIN", "WAREHOUSE_MANAGER", "DRIVER"] },
+  {
+    key: "empties",
+    labelKey: "emptyReturns",
+    icon: PackageCheck,
+    roles: ["OWNER", "ADMIN", "WAREHOUSE_MANAGER", "SALESPERSON", "ACCOUNTANT"]
+  },
   { key: "payments", labelKey: "payments", icon: Banknote, roles: ["OWNER", "ADMIN", "SALESPERSON", "ACCOUNTANT"] },
   { key: "reports", labelKey: "reports", icon: FileBarChart, roles: ["OWNER", "ADMIN", "ACCOUNTANT"] },
   { key: "settings", labelKey: "settings", icon: Settings, roles: ["OWNER", "ADMIN"] }

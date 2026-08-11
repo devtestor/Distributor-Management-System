@@ -419,6 +419,10 @@ button {
   box-shadow: var(--shadow);
 }
 
+.compact-spotlight {
+  grid-template-columns: minmax(0, 0.9fr) minmax(320px, 1.1fr);
+}
+
 .empties-copy {
   display: grid;
   align-content: center;

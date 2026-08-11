@@ -182,6 +182,40 @@ export type ApiDebtAgingEntry = {
   bucket: "0_30" | "31_60" | "61_90" | "90_PLUS";
 };
 
+export type ApiEmptyContainerMovement = {
+  id: string;
+  customerId: string;
+  productId: string | null;
+  movementType: "ISSUED_TO_CUSTOMER" | "RETURNED_BY_CUSTOMER" | "ADJUSTMENT" | "LOST";
+  quantity: number;
+  referenceType: string | null;
+  referenceId: string | null;
+  createdAt: string;
+  customer: {
+    id: string;
+    name: string;
+    route: string | null;
+  };
+  product: {
+    id: string;
+    name: string;
+    sku: string;
+  } | null;
+  createdBy: {
+    id: string;
+    fullName: string;
+    role: {
+      name: string;
+    };
+  };
+};
+
+export type ApiCustomerEmptyLedger = {
+  customer: ApiCustomer;
+  balance: number;
+  movements: ApiEmptyContainerMovement[];
+};
+
 export type ApiPayment = {
   id: string;
   customerId: string;
@@ -607,6 +641,36 @@ export function getCustomerAccountHistory(accessToken: string, customerId: strin
 export function getDebtAging(accessToken: string) {
   return request<ApiDebtAgingEntry[]>("/customers/debt-aging", {
     headers: authHeaders(accessToken)
+  });
+}
+
+export function getEmptyContainerMovements(accessToken: string) {
+  return request<ApiEmptyContainerMovement[]>("/empty-containers/movements", {
+    headers: authHeaders(accessToken)
+  });
+}
+
+export function getCustomerEmptyLedger(accessToken: string, customerId: string) {
+  return request<ApiCustomerEmptyLedger>(`/empty-containers/customers/${customerId}`, {
+    headers: authHeaders(accessToken)
+  });
+}
+
+export function recordEmptyContainerMovement(
+  accessToken: string,
+  payload: {
+    customerId: string;
+    productId?: string;
+    movementType: "ISSUED_TO_CUSTOMER" | "RETURNED_BY_CUSTOMER" | "ADJUSTMENT" | "LOST";
+    quantity: number;
+    referenceType?: string;
+    referenceId?: string;
+  }
+) {
+  return request<ApiEmptyContainerMovement>("/empty-containers/movements", {
+    method: "POST",
+    headers: authHeaders(accessToken),
+    body: JSON.stringify(payload)
   });
 }
 

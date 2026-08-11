@@ -34,6 +34,7 @@ import {
   ApiCompanyProfile,
   ApiCustomer,
   ApiDeliveryTrip,
+  ApiEmptyContainerMovement,
   ApiInvoice,
   ApiProduct,
   ApiProductPriceHistory,
@@ -63,6 +64,7 @@ import {
   getProductPriceHistory,
   getCustomers,
   getDeliveryTrips,
+  getEmptyContainerMovements,
   getAuditLogs,
   getApiHealth,
   getCompanyProfile,
@@ -85,6 +87,7 @@ import {
   receiveStock,
   reconcileDeliveryTrip,
   resetUserPassword,
+  recordEmptyContainerMovement,
   recordPayment,
   updateCompanyProfile,
   updateCustomer,
@@ -161,6 +164,7 @@ export default function Home() {
   const [apiVehicles, setApiVehicles] = useState<ApiVehicle[]>([]);
   const [apiWarehouses, setApiWarehouses] = useState<ApiWarehouse[]>([]);
   const [apiInvoices, setApiInvoices] = useState<ApiInvoice[]>([]);
+  const [apiEmptyMovements, setApiEmptyMovements] = useState<ApiEmptyContainerMovement[]>([]);
   const [apiUsers, setApiUsers] = useState<ApiUser[]>([]);
   const [apiRoles, setApiRoles] = useState<ApiRole[]>([]);
   const [apiAuditLogs, setApiAuditLogs] = useState<ApiAuditLog[]>([]);
@@ -219,6 +223,13 @@ export default function Home() {
     route: "",
     location: "",
     creditLimit: 0
+  });
+  const [emptyReturnForm, setEmptyReturnForm] = useState({
+    customerId: "",
+    productId: "",
+    movementType: "RETURNED_BY_CUSTOMER" as "ISSUED_TO_CUSTOMER" | "RETURNED_BY_CUSTOMER" | "ADJUSTMENT" | "LOST",
+    quantity: 1,
+    referenceType: ""
   });
   const [customerFormMode, setCustomerFormMode] = useState<"create" | "edit">("create");
   const [accountForm, setAccountForm] = useState({
@@ -321,6 +332,7 @@ export default function Home() {
     setApiVehicles([]);
     setApiWarehouses([]);
     setApiInvoices([]);
+    setApiEmptyMovements([]);
     setApiUsers([]);
     setApiRoles([]);
     setApiAuditLogs([]);
@@ -351,7 +363,25 @@ export default function Home() {
         const canReadDeliveryRecords =
           profile.role === "OWNER" || profile.role === "ADMIN" || profile.role === "WAREHOUSE_MANAGER" || profile.role === "DRIVER";
         const canReadVehicles = profile.role === "OWNER" || profile.role === "ADMIN" || profile.role === "WAREHOUSE_MANAGER";
-        const [company, dashboard, rawProducts, stockItems, rawCustomers, rawPayments, rawTrips, rawVehicles, rawWarehouses, rawInvoices] = await Promise.all([
+        const canReadEmptyReturns =
+          profile.role === "OWNER" ||
+          profile.role === "ADMIN" ||
+          profile.role === "WAREHOUSE_MANAGER" ||
+          profile.role === "SALESPERSON" ||
+          profile.role === "ACCOUNTANT";
+        const [
+          company,
+          dashboard,
+          rawProducts,
+          stockItems,
+          rawCustomers,
+          rawPayments,
+          rawTrips,
+          rawVehicles,
+          rawWarehouses,
+          rawInvoices,
+          rawEmptyMovements
+        ] = await Promise.all([
           optionalLiveData(getCompanyProfile(token), defaultCompanyProfile),
           canReadOwnerDashboard ? optionalLiveData(getOwnerDashboard(token), null) : Promise.resolve(null),
           canReadProducts ? optionalLiveData(getProducts(token), []) : Promise.resolve([]),
@@ -361,7 +391,8 @@ export default function Home() {
           canReadDeliveryRecords ? optionalLiveData(getDeliveryTrips(token), []) : Promise.resolve([]),
           canReadVehicles ? optionalLiveData(getVehicles(token), []) : Promise.resolve([]),
           canReadInventory ? optionalLiveData(getWarehouses(token), []) : Promise.resolve([]),
-          canReadFinancialRecords ? optionalLiveData(getInvoices(token), []) : Promise.resolve([])
+          canReadFinancialRecords ? optionalLiveData(getInvoices(token), []) : Promise.resolve([]),
+          canReadEmptyReturns ? optionalLiveData(getEmptyContainerMovements(token), []) : Promise.resolve([])
         ]);
 
         const canManageUsers = profile.role === "OWNER" || profile.role === "ADMIN";
@@ -405,6 +436,7 @@ export default function Home() {
         setApiVehicles(rawVehicles);
         setApiWarehouses(rawWarehouses);
         setApiInvoices(rawInvoices);
+        setApiEmptyMovements(rawEmptyMovements);
         setApiUsers(rawUsers);
         setApiRoles(rawRoles);
         setApiAuditLogs(rawAuditLogs);
@@ -514,6 +546,9 @@ export default function Home() {
           const payload = draft.payload as { tripId: string; data: Parameters<typeof reconcileDeliveryTrip>[2] };
           await reconcileDeliveryTrip(accessToken, payload.tripId, payload.data);
         }
+        if (draft.type === "empties") {
+          await recordEmptyContainerMovement(accessToken, draft.payload as Parameters<typeof recordEmptyContainerMovement>[1]);
+        }
         remaining.shift();
         saveOfflineDrafts(remaining);
       }
@@ -541,6 +576,9 @@ export default function Home() {
   const canManageCustomers = Boolean(user?.role && ["OWNER", "ADMIN"].includes(user.role));
   const canCreateDeliveries = Boolean(user?.role && ["OWNER", "ADMIN", "WAREHOUSE_MANAGER"].includes(user.role));
   const canReconcileDeliveries = Boolean(user?.role && ["OWNER", "ADMIN", "WAREHOUSE_MANAGER", "DRIVER"].includes(user.role));
+  const canRecordEmptyReturns = Boolean(
+    user?.role && ["OWNER", "ADMIN", "WAREHOUSE_MANAGER", "SALESPERSON"].includes(user.role)
+  );
   const canRecordPayments = Boolean(user?.role && ["OWNER", "ADMIN", "ACCOUNTANT", "SALESPERSON"].includes(user.role));
   const assignableRoles = apiRoles.filter((role) => user?.role === "OWNER" || role.name !== "OWNER");
   const openTrips = apiTrips.filter((trip) => trip.status !== "CLOSED");
@@ -605,6 +643,12 @@ export default function Home() {
     { key: "invoice" as const, label: t("createInvoice"), icon: ReceiptText, roles: ["OWNER", "ADMIN", "SALESPERSON"] as NavRole[] },
     { key: "delivery" as const, label: t("createDeliveryTrip"), icon: Truck, roles: ["OWNER", "ADMIN", "WAREHOUSE_MANAGER"] as NavRole[] },
     { key: "reconcile" as const, label: t("reconcileTruck"), icon: ClipboardCheck, roles: ["OWNER", "ADMIN", "WAREHOUSE_MANAGER", "DRIVER"] as NavRole[] },
+    {
+      key: "empties" as const,
+      label: t("recordEmptyReturn"),
+      icon: RotateCcw,
+      roles: ["OWNER", "ADMIN", "WAREHOUSE_MANAGER", "SALESPERSON"] as NavRole[]
+    },
     { key: "payment" as const, label: t("recordPayment"), icon: Banknote, roles: ["OWNER", "ADMIN", "SALESPERSON", "ACCOUNTANT"] as NavRole[] },
     { key: "customer" as const, label: t("createCustomer"), icon: Users, roles: ["OWNER", "ADMIN", "SALESPERSON", "ACCOUNTANT"] as NavRole[] }
   ].filter((item) => !user?.role || item.roles.includes(user.role as NavRole));
@@ -791,6 +835,16 @@ export default function Home() {
       });
     }
 
+    if (action === "empties") {
+      setEmptyReturnForm({
+        customerId: apiCustomers[0]?.id ?? "",
+        productId: apiProducts.find((product) => product.tracksEmpties)?.id ?? "",
+        movementType: "RETURNED_BY_CUSTOMER",
+        quantity: 1,
+        referenceType: "manual-entry"
+      });
+    }
+
     if (action === "delivery") {
       setDeliveryForm({
         vehicleId: activeVehicles[0]?.id ?? "",
@@ -928,6 +982,30 @@ export default function Home() {
         await createCustomer(accessToken, payload);
       },
       customerFormMode === "edit" ? t("customerUpdated") : t("customerCreated")
+    );
+  }
+
+  async function submitEmptyReturn(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (!accessToken) return;
+    const payload = {
+      customerId: emptyReturnForm.customerId,
+      productId: emptyReturnForm.productId || undefined,
+      movementType: emptyReturnForm.movementType,
+      quantity: emptyReturnForm.quantity,
+      referenceType: emptyReturnForm.referenceType || "manual-entry"
+    };
+
+    if (!isOnline) {
+      enqueueOfflineDraft("empties", payload);
+      return;
+    }
+
+    await runAction(
+      async () => {
+        await recordEmptyContainerMovement(accessToken, payload);
+      },
+      t("emptyMovementRecorded")
     );
   }
 
@@ -1797,6 +1875,166 @@ export default function Home() {
                     </div>
                   </div>
                 </article>
+              ) : null}
+
+              {activeSection === "empties" ? (
+                <section className="report-grid">
+                  <article className="empties-spotlight compact-spotlight">
+                    <div className="empties-copy">
+                      <span className="feature-kicker">{t("emptyReturns")}</span>
+                      <h3>{metrics.emptyLiability.toLocaleString()}</h3>
+                      <p>{t("emptyReturnsScreenNote")}</p>
+                      <div className="empties-actions">
+                        {canRecordEmptyReturns ? (
+                          <button
+                            className="primary-button"
+                            disabled={!canUseLiveActions}
+                            onClick={() => openActionModal("empties")}
+                            type="button"
+                          >
+                            <RotateCcw size={17} aria-hidden="true" />
+                            {t("recordEmptyReturn")}
+                          </button>
+                        ) : null}
+                        <button
+                          className="ghost-button"
+                          disabled={displayedCustomers.length === 0}
+                          onClick={() =>
+                            downloadCsv(
+                              "empty-balances.csv",
+                              displayedCustomers.map((customer) => ({
+                                customer: customer.name,
+                                deliveryArea: customer.route,
+                                phone: customer.phone,
+                                emptyBalance: customer.emptiesBalance
+                              }))
+                            )
+                          }
+                          type="button"
+                        >
+                          {t("exportCsv")}
+                        </button>
+                      </div>
+                    </div>
+                    <div className="empties-priority">
+                      <div className="priority-header">
+                        <strong>{t("collectionPriority")}</strong>
+                        <span>{t("emptyBalance")}</span>
+                      </div>
+                      <div className="priority-list">
+                        {highEmptiesCustomers.slice(0, 6).map((customer) => (
+                          <div className="priority-row" key={customer.id}>
+                            <span>
+                              <strong>{customer.name}</strong>
+                              <small>{customer.route}</small>
+                            </span>
+                            <b>{customer.emptiesBalance.toLocaleString()}</b>
+                          </div>
+                        ))}
+                        {highEmptiesCustomers.length === 0 ? (
+                          <div className="priority-empty">{isLiveDataLoading ? t("loadingData") : t("noRecords")}</div>
+                        ) : null}
+                      </div>
+                    </div>
+                  </article>
+
+                  <article className="panel">
+                    <div className="panel-header">
+                      <div>
+                        <h3>{t("customerEmptyBalances")}</h3>
+                        <span>{t("customerEmptyBalancesNote")}</span>
+                      </div>
+                      <RotateCcw size={18} color="var(--brand)" aria-hidden="true" />
+                    </div>
+                    <div className="table-wrap">
+                      <table>
+                        <thead>
+                          <tr>
+                            <th>{t("customer")}</th>
+                            <th>{t("deliveryArea")}</th>
+                            <th>{t("phone")}</th>
+                            <th>{t("emptyBalance")}</th>
+                            <th>{t("status")}</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {displayedCustomers.map((customer) => (
+                            <tr key={customer.id}>
+                              <td>
+                                <strong>{customer.name}</strong>
+                                <small>{customer.lastOrder ? new Date(customer.lastOrder).toLocaleDateString("en-RW") : "-"}</small>
+                              </td>
+                              <td>{customer.route}</td>
+                              <td>{customer.phone}</td>
+                              <td>{customer.emptiesBalance.toLocaleString()}</td>
+                              <td>
+                                <span className={`badge ${customer.emptiesBalance > 250 ? "danger" : customer.emptiesBalance > 0 ? "warn" : "good"}`}>
+                                  {customer.emptiesBalance > 250 ? t("collectNow") : customer.emptiesBalance > 0 ? t("watch") : t("healthy")}
+                                </span>
+                              </td>
+                            </tr>
+                          ))}
+                          {displayedCustomers.length === 0 ? (
+                            <tr>
+                              <td className="table-state" colSpan={5}>
+                                {isLiveDataLoading ? t("loadingData") : t("noRecords")}
+                              </td>
+                            </tr>
+                          ) : null}
+                        </tbody>
+                      </table>
+                    </div>
+                  </article>
+
+                  <article className="panel">
+                    <div className="panel-header">
+                      <div>
+                        <h3>{t("emptyMovementLedger")}</h3>
+                        <span>{t("emptyMovementLedgerNote")}</span>
+                      </div>
+                      <ShieldCheck size={18} color="var(--brand)" aria-hidden="true" />
+                    </div>
+                    <div className="table-wrap">
+                      <table>
+                        <thead>
+                          <tr>
+                            <th>{t("time")}</th>
+                            <th>{t("customer")}</th>
+                            <th>{t("movementType")}</th>
+                            <th>{t("product")}</th>
+                            <th>{t("quantity")}</th>
+                            <th>{t("actor")}</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {apiEmptyMovements.map((movement) => (
+                            <tr key={movement.id}>
+                              <td>{new Date(movement.createdAt).toLocaleString("en-RW")}</td>
+                              <td>
+                                <strong>{movement.customer.name}</strong>
+                                <small>{movement.customer.route ?? "-"}</small>
+                              </td>
+                              <td>{titleCaseEnum(movement.movementType)}</td>
+                              <td>{movement.product?.name ?? "-"}</td>
+                              <td>{movement.quantity.toLocaleString()}</td>
+                              <td>
+                                <strong>{movement.createdBy.fullName}</strong>
+                                <small>{movement.createdBy.role.name}</small>
+                              </td>
+                            </tr>
+                          ))}
+                          {apiEmptyMovements.length === 0 ? (
+                            <tr>
+                              <td className="table-state" colSpan={6}>
+                                {isLiveDataLoading ? t("loadingData") : t("noRecords")}
+                              </td>
+                            </tr>
+                          ) : null}
+                        </tbody>
+                      </table>
+                    </div>
+                  </article>
+                </section>
               ) : null}
 
               {activeSection === "dashboard" || activeSection === "customers" || activeSection === "deliveries" ? (
@@ -2928,7 +3166,9 @@ export default function Home() {
                           ? customerFormMode === "edit"
                             ? t("editCustomer")
                             : t("createCustomer")
-                          : t("recordPayment")}
+                          : activeAction === "empties"
+                            ? t("recordEmptyReturn")
+                            : t("recordPayment")}
               </h3>
               <button className="icon-button" onClick={closeActionModal} type="button">
                 <X size={18} aria-hidden="true" />
@@ -3207,6 +3447,90 @@ export default function Home() {
 	                      : customerFormMode === "edit"
 	                        ? t("updateCustomer")
 	                        : t("createCustomer")}
+	                  </button>
+	                </div>
+	              </form>
+	            ) : null}
+
+	            {activeAction === "empties" ? (
+	              <form className="entry-form" onSubmit={submitEmptyReturn}>
+	                <div className="form-grid">
+	                  <label>
+	                    <span>{t("customer")}</span>
+	                    <select
+	                      required
+	                      value={emptyReturnForm.customerId}
+	                      onChange={(event) => setEmptyReturnForm((current) => ({ ...current, customerId: event.target.value }))}
+	                    >
+	                      {apiCustomers.map((customer) => (
+	                        <option key={customer.id} value={customer.id}>
+	                          {customer.name}
+	                        </option>
+	                      ))}
+	                    </select>
+	                  </label>
+	                  <label>
+	                    <span>{t("movementType")}</span>
+	                    <select
+	                      value={emptyReturnForm.movementType}
+	                      onChange={(event) =>
+	                        setEmptyReturnForm((current) => ({
+	                          ...current,
+	                          movementType: event.target.value as typeof emptyReturnForm.movementType
+	                        }))
+	                      }
+	                    >
+	                      <option value="RETURNED_BY_CUSTOMER">{t("emptiesReturned")}</option>
+	                      <option value="ISSUED_TO_CUSTOMER">{t("emptiesIssued")}</option>
+	                      <option value="LOST">{t("emptiesLost")}</option>
+	                      <option value="ADJUSTMENT">{t("emptiesAdjustment")}</option>
+	                    </select>
+	                  </label>
+	                  <label>
+	                    <span>{t("quantity")}</span>
+	                    <input
+	                      min={1}
+	                      onFocus={selectNumberInput}
+	                      inputMode="numeric"
+	                      type="text"
+	                      value={emptyReturnForm.quantity}
+	                      onChange={(event) =>
+	                        setEmptyReturnForm((current) => ({ ...current, quantity: parseNumericInput(event.target.value) }))
+	                      }
+	                    />
+	                  </label>
+	                </div>
+	                <div className="form-grid">
+	                  <label>
+	                    <span>{t("product")}</span>
+	                    <select
+	                      value={emptyReturnForm.productId}
+	                      onChange={(event) => setEmptyReturnForm((current) => ({ ...current, productId: event.target.value }))}
+	                    >
+	                      <option value="">{t("notSpecified")}</option>
+	                      {apiProducts
+	                        .filter((product) => product.tracksEmpties)
+	                        .map((product) => (
+	                          <option key={product.id} value={product.id}>
+	                            {product.name}
+	                          </option>
+	                        ))}
+	                    </select>
+	                  </label>
+	                  <label>
+	                    <span>{t("reference")}</span>
+	                    <input
+	                      value={emptyReturnForm.referenceType}
+	                      onChange={(event) => setEmptyReturnForm((current) => ({ ...current, referenceType: event.target.value }))}
+	                    />
+	                  </label>
+	                </div>
+	                <div className="modal-actions">
+	                  <button className="ghost-button" onClick={closeActionModal} type="button">
+	                    {t("close")}
+	                  </button>
+	                  <button className="primary-button" disabled={isActionSubmitting} type="submit">
+	                    {isActionSubmitting ? t("saving") : t("saveEmptyMovement")}
 	                  </button>
 	                </div>
 	              </form>
