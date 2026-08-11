@@ -272,6 +272,7 @@ export default function Home() {
     note: ""
   });
   const [productForm, setProductForm] = useState(emptyProductForm);
+  const [colorMode, setColorMode] = useState<"light" | "dark">("light");
   const t = useCallback((key: TranslationKey) => dictionary[locale][key], [locale]);
   const isAccountAdmin = user?.role === "OWNER" || user?.role === "ADMIN";
   const isAuthenticated = Boolean(user && accessToken && apiStatus === "connected");
@@ -289,6 +290,14 @@ export default function Home() {
       }) as CSSProperties,
     [companyProfile.primaryColor, companyProfile.secondaryColor]
   );
+
+  function toggleColorMode() {
+    setColorMode((current) => {
+      const next = current === "dark" ? "light" : "dark";
+      window.localStorage.setItem("colorMode", next);
+      return next;
+    });
+  }
 
   const saveOfflineDrafts = useCallback((drafts: OfflineDraft[]) => {
     setOfflineDrafts(drafts);
@@ -465,6 +474,13 @@ export default function Home() {
   useEffect(() => {
     if ("serviceWorker" in navigator) {
       void navigator.serviceWorker.register("/sw.js").catch(() => undefined);
+    }
+
+    const storedColorMode = window.localStorage.getItem("colorMode");
+    if (storedColorMode === "dark" || storedColorMode === "light") {
+      setColorMode(storedColorMode);
+    } else if (window.matchMedia?.("(prefers-color-scheme: dark)").matches) {
+      setColorMode("dark");
     }
 
     setIsOnline(navigator.onLine);
@@ -1450,7 +1466,7 @@ export default function Home() {
   }
 
   return (
-    <main className="app-shell" style={tenantTheme}>
+    <main className="app-shell" data-theme={colorMode} style={tenantTheme}>
       <DashboardSidebar
         activeSection={activeSection}
         appName={t("appName")}
@@ -1464,10 +1480,15 @@ export default function Home() {
 
       <section className="main">
         <DashboardTopbar
+          colorMode={colorMode}
+          colorModeLabel={t("colorMode")}
+          darkModeLabel={t("darkMode")}
           languageLabel={t("language")}
+          lightModeLabel={t("lightMode")}
           locale={locale}
           locales={locales}
           searchPlaceholder={t("searchPlaceholder")}
+          onColorModeToggle={toggleColorMode}
           onLocaleChange={setLocale}
         />
 

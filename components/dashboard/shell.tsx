@@ -1,7 +1,9 @@
 import {
   CalendarDays,
+  Moon,
   Search,
   ShieldCheck,
+  Sun,
   type LucideIcon
 } from "lucide-react";
 import type { FormEventHandler } from "react";
@@ -79,18 +81,28 @@ export function DashboardSidebar({
 }
 
 type DashboardTopbarProps = {
+  colorMode: "light" | "dark";
+  colorModeLabel: string;
+  darkModeLabel: string;
+  lightModeLabel: string;
   languageLabel: string;
   locale: Locale;
   locales: LocaleOption[];
   searchPlaceholder: string;
+  onColorModeToggle: () => void;
   onLocaleChange: (locale: Locale) => void;
 };
 
 export function DashboardTopbar({
+  colorMode,
+  colorModeLabel,
+  darkModeLabel,
+  lightModeLabel,
   languageLabel,
   locale,
   locales,
   searchPlaceholder,
+  onColorModeToggle,
   onLocaleChange
 }: DashboardTopbarProps) {
   return (
@@ -100,18 +112,31 @@ export function DashboardTopbar({
         <input aria-label="Search" placeholder={searchPlaceholder} />
       </label>
 
-      <div aria-label={languageLabel} className="language-switcher" title={languageLabel}>
-        {locales.map((item) => (
-          <button
-            className={locale === item.code ? "active" : ""}
-            key={item.code}
-            onClick={() => onLocaleChange(item.code)}
-            title={item.label}
-            type="button"
-          >
-            {item.short}
-          </button>
-        ))}
+      <div className="topbar-controls">
+        <button
+          aria-label={colorModeLabel}
+          className="theme-toggle"
+          onClick={onColorModeToggle}
+          title={colorModeLabel}
+          type="button"
+        >
+          {colorMode === "dark" ? <Sun size={17} aria-hidden="true" /> : <Moon size={17} aria-hidden="true" />}
+          <span>{colorMode === "dark" ? lightModeLabel : darkModeLabel}</span>
+        </button>
+
+        <div aria-label={languageLabel} className="language-switcher" title={languageLabel}>
+          {locales.map((item) => (
+            <button
+              className={locale === item.code ? "active" : ""}
+              key={item.code}
+              onClick={() => onLocaleChange(item.code)}
+              title={item.label}
+              type="button"
+            >
+              {item.short}
+            </button>
+          ))}
+        </div>
       </div>
     </header>
   );
