@@ -27,4 +27,9 @@ export class ReportsController {
   empties(@Req() request: AuthenticatedRequest) {
     return this.reportsService.empties(request.user.companyId);
   }
+
+  @Get("driver-accountability")
+  driverAccountability(@Req() request: AuthenticatedRequest) {
+    return this.reportsService.driverAccountability(request.user.companyId);
+  }
 }

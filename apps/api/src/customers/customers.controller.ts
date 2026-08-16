@@ -2,7 +2,9 @@ import { Body, Controller, Delete, Get, Inject, Param, Patch, Post, Query, Req }
 import type { AuthenticatedRequest } from "../common/authenticated-request";
 import type { PaginationQuery } from "../common/pagination";
 import { Roles } from "../common/roles.decorator";
+import { CreateDebtCollectionActivityDto } from "./dto/create-debt-collection-activity.dto";
 import { CreateCustomerDto } from "./dto/create-customer.dto";
+import { UpdateDebtCollectionActivityDto } from "./dto/update-debt-collection-activity.dto";
 import { UpdateCustomerDto } from "./dto/update-customer.dto";
 import { CustomersService } from "./customers.service";
 
@@ -38,6 +40,24 @@ export class CustomersController {
   @Get("debt-aging")
   debtAging(@Req() request: AuthenticatedRequest) {
     return this.customersService.getDebtAging(request.user.companyId);
+  }
+
+  @Roles("OWNER", "ADMIN", "ACCOUNTANT", "SALESPERSON")
+  @Get("collection-activities")
+  collectionActivities(@Req() request: AuthenticatedRequest) {
+    return this.customersService.listDebtCollectionActivities(request.user.companyId);
+  }
+
+  @Roles("OWNER", "ADMIN", "ACCOUNTANT", "SALESPERSON")
+  @Post("collection-activities")
+  createCollectionActivity(@Body() dto: CreateDebtCollectionActivityDto, @Req() request: AuthenticatedRequest) {
+    return this.customersService.createDebtCollectionActivity(dto, request.user.id, request.user.companyId);
+  }
+
+  @Roles("OWNER", "ADMIN", "ACCOUNTANT", "SALESPERSON")
+  @Patch("collection-activities/:id")
+  updateCollectionActivity(@Param("id") id: string, @Body() dto: UpdateDebtCollectionActivityDto, @Req() request: AuthenticatedRequest) {
+    return this.customersService.updateDebtCollectionActivity(id, dto, request.user.id, request.user.companyId);
   }
 
   @Roles("OWNER", "ADMIN", "ACCOUNTANT", "SALESPERSON")

@@ -206,6 +206,59 @@ export class ReportsService {
     };
   }
 
+  async driverAccountability(companyId: string) {
+    const trips = await this.prisma.deliveryTrip.findMany({
+      where: { companyId },
+      include: {
+        driver: true,
+        vehicle: true,
+        items: { include: { product: true } },
+        proofs: true
+      },
+      orderBy: { createdAt: "desc" }
+    });
+
+    const rows = trips.map((trip) => {
+      const deliveredValue = trip.items.reduce((sum, item) => sum + item.deliveredQuantity * Number(item.product.unitPrice), 0);
+      const returnedQuantity = trip.items.reduce((sum, item) => sum + item.returnedQuantity, 0);
+      const damagedQuantity = trip.items.reduce((sum, item) => sum + item.damagedQuantity, 0);
+      const expectedCash = Math.max(0, deliveredValue - Number(trip.creditIssued));
+      const cashVariance = Number(trip.cashCollected) - expectedCash;
+
+      return {
+        tripId: trip.id,
+        driverId: trip.driverId,
+        driver: trip.driver.fullName,
+        vehicle: trip.vehicle.plateNumber,
+        deliveryArea: trip.route,
+        status: trip.status,
+        deliveredValue,
+        expectedCash,
+        cashCollected: Number(trip.cashCollected),
+        cashVariance,
+        creditIssued: Number(trip.creditIssued),
+        returnedQuantity,
+        damagedQuantity,
+        proofCount: trip.proofs.length,
+        loadedAt: trip.loadedAt,
+        returnedAt: trip.returnedAt,
+        createdAt: trip.createdAt
+      };
+    });
+
+    return {
+      totals: {
+        trips: rows.length,
+        expectedCash: rows.reduce((sum, row) => sum + row.expectedCash, 0),
+        cashCollected: rows.reduce((sum, row) => sum + row.cashCollected, 0),
+        cashVariance: rows.reduce((sum, row) => sum + row.cashVariance, 0),
+        damagedQuantity: rows.reduce((sum, row) => sum + row.damagedQuantity, 0),
+        proofCount: rows.reduce((sum, row) => sum + row.proofCount, 0)
+      },
+      rows
+    };
+  }
+
   private dateRange(from?: string, to?: string) {
     const range: { gte?: Date; lte?: Date } = {};
     if (from) {

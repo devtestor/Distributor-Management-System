@@ -226,6 +226,9 @@ export type ApiPayment = {
   method: string;
   amount: number | string;
   reference: string | null;
+  reconciliationStatus: "PENDING" | "MATCHED" | "FLAGGED";
+  reconciliationNote: string | null;
+  reconciledAt: string | null;
   receivedAt: string;
 };
 
@@ -236,6 +239,13 @@ export type ApiInvoice = {
   status: string;
   paymentStatus: string;
   totalAmount: number | string;
+  taxRate: number | string;
+  taxAmount: number | string;
+  ebmStatus: "NOT_SUBMITTED" | "SUBMITTED" | "ACCEPTED" | "REJECTED";
+  ebmReceiptNumber: string | null;
+  ebmSdcId: string | null;
+  ebmSignature: string | null;
+  ebmSubmittedAt: string | null;
   createdAt: string;
   customer: {
     id: string;
@@ -286,6 +296,77 @@ export type ApiDeliveryTrip = {
       name: string;
       unitPrice: number | string;
     };
+  }>;
+  proofs?: ApiDeliveryProof[];
+};
+
+export type ApiDeliveryProof = {
+  id: string;
+  tripId: string;
+  customerId: string | null;
+  receiverName: string;
+  receiverPhone: string | null;
+  deliveredAt: string;
+  latitude: number | string | null;
+  longitude: number | string | null;
+  signatureDataUrl: string | null;
+  photoUrl: string | null;
+  note: string | null;
+  createdAt: string;
+  customer: {
+    id: string;
+    name: string;
+  } | null;
+  createdBy: {
+    id: string;
+    fullName: string;
+  };
+};
+
+export type ApiDebtCollectionActivity = {
+  id: string;
+  customerId: string;
+  invoiceId: string | null;
+  actionType: "CALL" | "VISIT" | "SMS" | "WHATSAPP" | "PROMISE_TO_PAY" | "PAYMENT_REMINDER" | "ACCOUNT_BLOCKED" | "NOTE";
+  status: "OPEN" | "COMPLETED" | "MISSED" | "CANCELLED";
+  note: string | null;
+  promisedAmount: number | string | null;
+  promisedDate: string | null;
+  nextFollowUpAt: string | null;
+  completedAt: string | null;
+  createdAt: string;
+  customer: ApiCustomer;
+  invoice: ApiInvoice | null;
+  createdBy: ApiUser;
+};
+
+export type ApiDriverAccountabilityReport = {
+  totals: {
+    trips: number;
+    expectedCash: number;
+    cashCollected: number;
+    cashVariance: number;
+    damagedQuantity: number;
+    proofCount: number;
+  };
+  rows: Array<{
+    tripId: string;
+    driverId: string;
+    driver: string;
+    vehicle: string;
+    deliveryArea: string;
+    status: string;
+    deliveredValue: number;
+    expectedCash: number;
+    cashCollected: number;
+    cashVariance: number;
+    creditIssued: number;
+    returnedQuantity: number;
+    damagedQuantity: number;
+    proofCount: number;
+    loadedAt: string | null;
+    returnedAt: string | null;
+    createdAt: string;
   }>;
 };
 
@@ -644,6 +725,48 @@ export function getDebtAging(accessToken: string) {
   });
 }
 
+export function getDebtCollectionActivities(accessToken: string) {
+  return request<ApiDebtCollectionActivity[]>("/customers/collection-activities", {
+    headers: authHeaders(accessToken)
+  });
+}
+
+export function createDebtCollectionActivity(
+  accessToken: string,
+  payload: {
+    customerId: string;
+    invoiceId?: string;
+    actionType: ApiDebtCollectionActivity["actionType"];
+    status?: ApiDebtCollectionActivity["status"];
+    note?: string;
+    promisedAmount?: number;
+    promisedDate?: string;
+    nextFollowUpAt?: string;
+  }
+) {
+  return request<ApiDebtCollectionActivity>("/customers/collection-activities", {
+    method: "POST",
+    headers: authHeaders(accessToken),
+    body: JSON.stringify(payload)
+  });
+}
+
+export function updateDebtCollectionActivity(
+  accessToken: string,
+  activityId: string,
+  payload: {
+    status: ApiDebtCollectionActivity["status"];
+    note?: string;
+    nextFollowUpAt?: string;
+  }
+) {
+  return request<ApiDebtCollectionActivity>(`/customers/collection-activities/${activityId}`, {
+    method: "PATCH",
+    headers: authHeaders(accessToken),
+    body: JSON.stringify(payload)
+  });
+}
+
 export function getEmptyContainerMovements(accessToken: string) {
   return request<ApiEmptyContainerMovement[]>("/empty-containers/movements", {
     headers: authHeaders(accessToken)
@@ -752,6 +875,12 @@ export function getEmptiesReport(accessToken: string) {
   });
 }
 
+export function getDriverAccountabilityReport(accessToken: string) {
+  return request<ApiDriverAccountabilityReport>("/reports/driver-accountability", {
+    headers: authHeaders(accessToken)
+  });
+}
+
 export function receiveStock(
   accessToken: string,
   payload: {
@@ -818,6 +947,21 @@ export function recordPayment(
   });
 }
 
+export function reconcilePayment(
+  accessToken: string,
+  paymentId: string,
+  payload: {
+    reconciliationStatus: "PENDING" | "MATCHED" | "FLAGGED";
+    reconciliationNote?: string;
+  }
+) {
+  return request<ApiPayment>(`/payments/${paymentId}/reconciliation`, {
+    method: "PATCH",
+    headers: authHeaders(accessToken),
+    body: JSON.stringify(payload)
+  });
+}
+
 export function reconcileDeliveryTrip(
   accessToken: string,
   tripId: string,
@@ -834,6 +978,46 @@ export function reconcileDeliveryTrip(
 ) {
   return request(`/deliveries/trips/${tripId}/reconcile`, {
     method: "POST",
+    headers: authHeaders(accessToken),
+    body: JSON.stringify(payload)
+  });
+}
+
+export function createDeliveryProof(
+  accessToken: string,
+  tripId: string,
+  payload: {
+    customerId?: string;
+    receiverName: string;
+    receiverPhone?: string;
+    deliveredAt?: string;
+    latitude?: number;
+    longitude?: number;
+    signatureDataUrl?: string;
+    photoUrl?: string;
+    note?: string;
+  }
+) {
+  return request<ApiDeliveryProof>(`/deliveries/trips/${tripId}/proofs`, {
+    method: "POST",
+    headers: authHeaders(accessToken),
+    body: JSON.stringify(payload)
+  });
+}
+
+export function updateInvoiceEbmStatus(
+  accessToken: string,
+  invoiceId: string,
+  payload: {
+    ebmStatus: "NOT_SUBMITTED" | "SUBMITTED" | "ACCEPTED" | "REJECTED";
+    ebmReceiptNumber?: string;
+    ebmSdcId?: string;
+    ebmSignature?: string;
+    ebmSubmittedAt?: string;
+  }
+) {
+  return request<ApiInvoice>(`/invoices/${invoiceId}/ebm`, {
+    method: "PATCH",
     headers: authHeaders(accessToken),
     body: JSON.stringify(payload)
   });

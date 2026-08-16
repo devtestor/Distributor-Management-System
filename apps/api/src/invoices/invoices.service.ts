@@ -4,6 +4,7 @@ import { PrismaService } from "../prisma/prisma.service";
 import { paginationArgs, type PaginationQuery } from "../common/pagination";
 import { CancelInvoiceDto } from "./dto/cancel-invoice.dto";
 import { CreateInvoiceDto } from "./dto/create-invoice.dto";
+import { UpdateEbmStatusDto } from "./dto/update-ebm-status.dto";
 
 const mainWarehouseId = "00000000-0000-0000-0000-000000000001";
 const inboundMovementTypes = new Set<StockMovementType>([
@@ -71,6 +72,8 @@ export class InvoicesService {
     });
 
     const totalAmount = invoiceItems.reduce((sum, item) => sum + Number(item.lineTotal), 0);
+    const taxRate = dto.taxRate ?? 18;
+    const taxAmount = Math.round((totalAmount - totalAmount / (1 + taxRate / 100)) * 100) / 100;
     const initialPaymentAmount = dto.initialPaymentAmount ?? 0;
     if (initialPaymentAmount > totalAmount) {
       throw new BadRequestException("Initial payment cannot exceed invoice total");
@@ -118,6 +121,8 @@ export class InvoicesService {
           status: InvoiceStatus.ISSUED,
           paymentStatus,
           totalAmount,
+          taxRate,
+          taxAmount,
           createdById,
           items: { create: invoiceItems },
           payments:
@@ -243,6 +248,40 @@ export class InvoicesService {
 
       return cancelled;
     });
+  }
+
+  async updateEbmStatus(id: string, dto: UpdateEbmStatusDto, actorUserId: string, companyId: string) {
+    const invoice = await this.prisma.invoice.findUnique({ where: { id, companyId } });
+    if (!invoice) throw new NotFoundException("Invoice not found");
+
+    const updated = await this.prisma.invoice.update({
+      where: { id, companyId },
+      data: {
+        ebmStatus: dto.ebmStatus,
+        ebmReceiptNumber: dto.ebmReceiptNumber,
+        ebmSdcId: dto.ebmSdcId,
+        ebmSignature: dto.ebmSignature,
+        ebmSubmittedAt: dto.ebmSubmittedAt ? new Date(dto.ebmSubmittedAt) : dto.ebmStatus === "SUBMITTED" ? new Date() : invoice.ebmSubmittedAt
+      },
+      include: { customer: true, items: { include: { product: true } }, payments: true }
+    });
+
+    await this.prisma.auditLog.create({
+      data: {
+        userId: actorUserId,
+        companyId,
+        action: "INVOICE_EBM_UPDATED",
+        entity: "Invoice",
+        entityId: invoice.id,
+        metadata: {
+          invoiceNumber: invoice.invoiceNumber,
+          ebmStatus: dto.ebmStatus,
+          ebmReceiptNumber: dto.ebmReceiptNumber
+        }
+      }
+    });
+
+    return updated;
   }
 
   private async nextInvoiceNumber(tx: InvoiceTransaction, companyId: string) {

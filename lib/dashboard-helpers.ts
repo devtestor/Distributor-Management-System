@@ -16,7 +16,7 @@ import type { Delivery, Locale, Payment, Product } from "@/lib/types";
 export const MAIN_WAREHOUSE_ID = "00000000-0000-0000-0000-000000000001";
 export const OFFLINE_DRAFTS_KEY = "offlineDrafts";
 
-export type ActionType = "stock" | "invoice" | "delivery" | "reconcile" | "payment" | "customer" | "empties" | null;
+export type ActionType = "stock" | "invoice" | "delivery" | "reconcile" | "payment" | "customer" | "empties" | "proof" | "collection" | null;
 
 export type InvoiceFormItem = {
   productId: string;
@@ -40,7 +40,7 @@ export type DeliveryLoadFormItem = {
 
 export type OfflineDraft = {
   id: string;
-  type: "stock" | "invoice" | "payment" | "delivery" | "reconcile" | "empties";
+  type: "stock" | "invoice" | "payment" | "delivery" | "reconcile" | "empties" | "proof" | "collection";
   payload: Record<string, unknown>;
   createdAt: string;
 };

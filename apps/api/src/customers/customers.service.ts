@@ -1,8 +1,10 @@
 import { BadRequestException, Inject, Injectable, NotFoundException } from "@nestjs/common";
-import { EmptyMovementType, InvoiceStatus } from "@prisma/client";
+import { DebtCollectionStatus, EmptyMovementType, InvoiceStatus } from "@prisma/client";
 import { PrismaService } from "../prisma/prisma.service";
 import { paginationArgs, type PaginationQuery } from "../common/pagination";
+import { CreateDebtCollectionActivityDto } from "./dto/create-debt-collection-activity.dto";
 import { CreateCustomerDto } from "./dto/create-customer.dto";
+import { UpdateDebtCollectionActivityDto } from "./dto/update-debt-collection-activity.dto";
 import { UpdateCustomerDto } from "./dto/update-customer.dto";
 
 @Injectable()
@@ -286,6 +288,98 @@ export class CustomersService {
         };
       })
       .filter((entry) => entry.outstanding > 0);
+  }
+
+  listDebtCollectionActivities(companyId: string) {
+    return this.prisma.debtCollectionActivity.findMany({
+      where: { companyId },
+      include: {
+        customer: true,
+        invoice: true,
+        createdBy: { include: { role: true } }
+      },
+      orderBy: [{ status: "asc" }, { nextFollowUpAt: "asc" }, { createdAt: "desc" }]
+    });
+  }
+
+  async createDebtCollectionActivity(dto: CreateDebtCollectionActivityDto, actorUserId: string, companyId: string) {
+    const customer = await this.prisma.customer.findUnique({ where: { id: dto.customerId, companyId } });
+    if (!customer) throw new NotFoundException("Customer not found");
+
+    if (dto.invoiceId) {
+      const invoice = await this.prisma.invoice.findUnique({ where: { id: dto.invoiceId, companyId } });
+      if (!invoice) throw new NotFoundException("Invoice not found");
+      if (invoice.customerId !== dto.customerId) throw new BadRequestException("Invoice does not belong to customer");
+    }
+
+    const activity = await this.prisma.debtCollectionActivity.create({
+      data: {
+        companyId,
+        customerId: dto.customerId,
+        invoiceId: dto.invoiceId,
+        actionType: dto.actionType,
+        status: dto.status ?? DebtCollectionStatus.OPEN,
+        note: dto.note,
+        promisedAmount: dto.promisedAmount,
+        promisedDate: dto.promisedDate ? new Date(dto.promisedDate) : undefined,
+        nextFollowUpAt: dto.nextFollowUpAt ? new Date(dto.nextFollowUpAt) : undefined,
+        createdById: actorUserId,
+        completedAt: dto.status === DebtCollectionStatus.COMPLETED ? new Date() : undefined
+      },
+      include: { customer: true, invoice: true, createdBy: { include: { role: true } } }
+    });
+
+    await this.prisma.auditLog.create({
+      data: {
+        userId: actorUserId,
+        companyId,
+        action: "DEBT_COLLECTION_ACTIVITY_CREATED",
+        entity: "DebtCollectionActivity",
+        entityId: activity.id,
+        metadata: {
+          customerId: activity.customerId,
+          invoiceId: activity.invoiceId,
+          actionType: activity.actionType,
+          status: activity.status,
+          promisedAmount: activity.promisedAmount ? Number(activity.promisedAmount) : null
+        }
+      }
+    });
+
+    return activity;
+  }
+
+  async updateDebtCollectionActivity(id: string, dto: UpdateDebtCollectionActivityDto, actorUserId: string, companyId: string) {
+    const activity = await this.prisma.debtCollectionActivity.findUnique({ where: { id, companyId } });
+    if (!activity) throw new NotFoundException("Collection activity not found");
+
+    const updated = await this.prisma.debtCollectionActivity.update({
+      where: { id, companyId },
+      data: {
+        status: dto.status,
+        note: dto.note ?? activity.note,
+        nextFollowUpAt: dto.nextFollowUpAt ? new Date(dto.nextFollowUpAt) : activity.nextFollowUpAt,
+        completedAt: dto.status === DebtCollectionStatus.COMPLETED ? new Date() : activity.completedAt
+      },
+      include: { customer: true, invoice: true, createdBy: { include: { role: true } } }
+    });
+
+    await this.prisma.auditLog.create({
+      data: {
+        userId: actorUserId,
+        companyId,
+        action: "DEBT_COLLECTION_ACTIVITY_UPDATED",
+        entity: "DebtCollectionActivity",
+        entityId: activity.id,
+        metadata: {
+          status: updated.status,
+          customerId: updated.customerId,
+          invoiceId: updated.invoiceId
+        }
+      }
+    });
+
+    return updated;
   }
 
   private agingBucket(ageDays: number) {

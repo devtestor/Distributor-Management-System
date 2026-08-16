@@ -50,4 +50,9 @@ export class CreateInvoiceDto {
   @IsBoolean()
   @IsOptional()
   allowNegativeStock?: boolean;
+
+  @IsInt()
+  @Min(0)
+  @IsOptional()
+  taxRate?: number;
 }

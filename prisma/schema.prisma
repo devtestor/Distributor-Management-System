@@ -60,6 +60,19 @@ enum PaymentMethod {
   CREDIT
 }
 
+enum PaymentReconciliationStatus {
+  PENDING
+  MATCHED
+  FLAGGED
+}
+
+enum EBMStatus {
+  NOT_SUBMITTED
+  SUBMITTED
+  ACCEPTED
+  REJECTED
+}
+
 enum EmptyMovementType {
   ISSUED_TO_CUSTOMER
   RETURNED_BY_CUSTOMER
@@ -75,32 +88,52 @@ enum DeliveryStatus {
   CANCELLED
 }
 
+enum DebtCollectionActionType {
+  CALL
+  VISIT
+  SMS
+  WHATSAPP
+  PROMISE_TO_PAY
+  PAYMENT_REMINDER
+  ACCOUNT_BLOCKED
+  NOTE
+}
+
+enum DebtCollectionStatus {
+  OPEN
+  COMPLETED
+  MISSED
+  CANCELLED
+}
+
 model Company {
-  id                      String                   @id @default(uuid())
-  name                    String
-  code                    String                   @unique
-  industry                String                   @default("Beverage distribution")
-  logoUrl                 String?
-  primaryColor            String                   @default("#0b6b50")
-  secondaryColor          String                   @default("#f4c542")
-  currency                String                   @default("RWF")
-  defaultLocale           Locale                   @default(en)
-  featureFlags            Json?
-  createdAt               DateTime                 @default(now())
-  users                   User[]
-  products                Product[]
-  productPriceHistory     ProductPriceHistory[]
-  warehouses              Warehouse[]
-  customers               Customer[]
-  stockMovements          StockMovement[]
-  invoices                Invoice[]
-  payments                Payment[]
-  emptyContainerMovements EmptyContainerMovement[]
-  vehicles                Vehicle[]
-  deliveryTrips           DeliveryTrip[]
-  expenses                Expense[]
-  auditLogs               AuditLog[]
-  invoiceSequences        InvoiceSequence[]
+  id                       String                   @id @default(uuid())
+  name                     String
+  code                     String                   @unique
+  industry                 String                   @default("Beverage distribution")
+  logoUrl                  String?
+  primaryColor             String                   @default("#0b6b50")
+  secondaryColor           String                   @default("#f4c542")
+  currency                 String                   @default("RWF")
+  defaultLocale            Locale                   @default(en)
+  featureFlags             Json?
+  createdAt                DateTime                 @default(now())
+  users                    User[]
+  products                 Product[]
+  productPriceHistory      ProductPriceHistory[]
+  warehouses               Warehouse[]
+  customers                Customer[]
+  stockMovements           StockMovement[]
+  invoices                 Invoice[]
+  payments                 Payment[]
+  emptyContainerMovements  EmptyContainerMovement[]
+  vehicles                 Vehicle[]
+  deliveryTrips            DeliveryTrip[]
+  deliveryProofs           DeliveryProof[]
+  debtCollectionActivities DebtCollectionActivity[]
+  expenses                 Expense[]
+  auditLogs                AuditLog[]
+  invoiceSequences         InvoiceSequence[]
 }
 
 model Role {
@@ -112,27 +145,30 @@ model Role {
 }
 
 model User {
-  id                      String                   @id @default(uuid())
-  companyId               String
-  company                 Company                  @relation(fields: [companyId], references: [id])
-  roleId                  String
-  role                    Role                     @relation(fields: [roleId], references: [id])
-  fullName                String
-  phone                   String?
-  email                   String?                  @unique
-  passwordHash            String
-  preferredLocale         Locale                   @default(en)
-  isActive                Boolean                  @default(true)
-  createdAt               DateTime                 @default(now())
-  stockMovements          StockMovement[]
-  invoices                Invoice[]
-  payments                Payment[]
-  emptyContainerMovements EmptyContainerMovement[]
-  drivenVehicles          Vehicle[]                @relation("VehicleDriver")
-  deliveryTrips           DeliveryTrip[]
-  expenses                Expense[]
-  auditLogs               AuditLog[]
-  productPriceHistory     ProductPriceHistory[]
+  id                       String                   @id @default(uuid())
+  companyId                String
+  company                  Company                  @relation(fields: [companyId], references: [id])
+  roleId                   String
+  role                     Role                     @relation(fields: [roleId], references: [id])
+  fullName                 String
+  phone                    String?
+  email                    String?                  @unique
+  passwordHash             String
+  preferredLocale          Locale                   @default(en)
+  isActive                 Boolean                  @default(true)
+  createdAt                DateTime                 @default(now())
+  stockMovements           StockMovement[]
+  invoices                 Invoice[]
+  payments                 Payment[]
+  emptyContainerMovements  EmptyContainerMovement[]
+  drivenVehicles           Vehicle[]                @relation("VehicleDriver")
+  deliveryTrips            DeliveryTrip[]
+  deliveryProofs           DeliveryProof[]
+  reconciledPayments       Payment[]                @relation("PaymentReconciledBy")
+  debtCollectionActivities DebtCollectionActivity[]
+  expenses                 Expense[]
+  auditLogs                AuditLog[]
+  productPriceHistory      ProductPriceHistory[]
 
   @@index([companyId])
   @@index([roleId])
@@ -160,10 +196,10 @@ model Product {
   deliveryTripItems       DeliveryTripItem[]
   priceHistory            ProductPriceHistory[]
 
+  @@unique([companyId, sku])
   @@index([companyId])
   @@index([category])
   @@index([isActive])
-  @@unique([companyId, sku])
 }
 
 model ProductPriceHistory {
@@ -201,19 +237,21 @@ model Warehouse {
 }
 
 model Customer {
-  id                      String                   @id @default(uuid())
-  companyId               String
-  company                 Company                  @relation(fields: [companyId], references: [id])
-  name                    String
-  phone                   String?
-  route                   String?
-  location                String?
-  creditLimit             Decimal                  @default(0) @db.Decimal(14, 2)
-  isActive                Boolean                  @default(true)
-  createdAt               DateTime                 @default(now())
-  invoices                Invoice[]
-  payments                Payment[]
-  emptyContainerMovements EmptyContainerMovement[]
+  id                       String                   @id @default(uuid())
+  companyId                String
+  company                  Company                  @relation(fields: [companyId], references: [id])
+  name                     String
+  phone                    String?
+  route                    String?
+  location                 String?
+  creditLimit              Decimal                  @default(0) @db.Decimal(14, 2)
+  isActive                 Boolean                  @default(true)
+  createdAt                DateTime                 @default(now())
+  invoices                 Invoice[]
+  payments                 Payment[]
+  emptyContainerMovements  EmptyContainerMovement[]
+  deliveryProofs           DeliveryProof[]
+  debtCollectionActivities DebtCollectionActivity[]
 
   @@index([companyId])
   @@index([route])
@@ -246,26 +284,35 @@ model StockMovement {
 }
 
 model Invoice {
-  id            String        @id @default(uuid())
-  companyId     String
-  company       Company       @relation(fields: [companyId], references: [id])
-  customerId    String
-  customer      Customer      @relation(fields: [customerId], references: [id])
-  invoiceNumber String
-  status        InvoiceStatus @default(DRAFT)
-  paymentStatus PaymentStatus @default(UNPAID)
-  totalAmount   Decimal       @db.Decimal(14, 2)
-  createdById   String
-  createdBy     User          @relation(fields: [createdById], references: [id])
-  createdAt     DateTime      @default(now())
-  items         InvoiceItem[]
-  payments      Payment[]
+  id                       String                   @id @default(uuid())
+  companyId                String
+  company                  Company                  @relation(fields: [companyId], references: [id])
+  customerId               String
+  customer                 Customer                 @relation(fields: [customerId], references: [id])
+  invoiceNumber            String
+  status                   InvoiceStatus            @default(DRAFT)
+  paymentStatus            PaymentStatus            @default(UNPAID)
+  totalAmount              Decimal                  @db.Decimal(14, 2)
+  taxRate                  Decimal                  @default(18.00) @db.Decimal(5, 2)
+  taxAmount                Decimal                  @default(0) @db.Decimal(14, 2)
+  ebmStatus                EBMStatus                @default(NOT_SUBMITTED)
+  ebmReceiptNumber         String?
+  ebmSdcId                 String?
+  ebmSignature             String?
+  ebmSubmittedAt           DateTime?
+  createdById              String
+  createdBy                User                     @relation(fields: [createdById], references: [id])
+  createdAt                DateTime                 @default(now())
+  items                    InvoiceItem[]
+  payments                 Payment[]
+  debtCollectionActivities DebtCollectionActivity[]
 
+  @@unique([companyId, invoiceNumber])
   @@index([companyId])
   @@index([customerId])
   @@index([createdAt])
   @@index([paymentStatus])
-  @@unique([companyId, invoiceNumber])
+  @@index([ebmStatus])
 }
 
 model InvoiceSequence {
@@ -292,23 +339,29 @@ model InvoiceItem {
 }
 
 model Payment {
-  id           String        @id @default(uuid())
-  companyId    String
-  company      Company       @relation(fields: [companyId], references: [id])
-  customerId   String
-  customer     Customer      @relation(fields: [customerId], references: [id])
-  invoiceId    String?
-  invoice      Invoice?      @relation(fields: [invoiceId], references: [id])
-  method       PaymentMethod
-  amount       Decimal       @db.Decimal(14, 2)
-  reference    String?
-  receivedById String
-  receivedBy   User          @relation(fields: [receivedById], references: [id])
-  receivedAt   DateTime      @default(now())
+  id                   String                      @id @default(uuid())
+  companyId            String
+  company              Company                     @relation(fields: [companyId], references: [id])
+  customerId           String
+  customer             Customer                    @relation(fields: [customerId], references: [id])
+  invoiceId            String?
+  invoice              Invoice?                    @relation(fields: [invoiceId], references: [id])
+  method               PaymentMethod
+  amount               Decimal                     @db.Decimal(14, 2)
+  reference            String?
+  reconciliationStatus PaymentReconciliationStatus @default(PENDING)
+  reconciliationNote   String?
+  reconciledAt         DateTime?
+  reconciledById       String?
+  reconciledBy         User?                       @relation("PaymentReconciledBy", fields: [reconciledById], references: [id])
+  receivedById         String
+  receivedBy           User                        @relation(fields: [receivedById], references: [id])
+  receivedAt           DateTime                    @default(now())
 
   @@index([companyId])
   @@index([customerId])
   @@index([invoiceId])
+  @@index([reconciliationStatus])
   @@index([receivedAt])
 }
 
@@ -344,8 +397,8 @@ model Vehicle {
   isActive    Boolean        @default(true)
   trips       DeliveryTrip[]
 
-  @@index([companyId])
   @@unique([companyId, plateNumber])
+  @@index([companyId])
 }
 
 model DeliveryTrip {
@@ -364,6 +417,7 @@ model DeliveryTrip {
   returnedAt    DateTime?
   createdAt     DateTime           @default(now())
   items         DeliveryTripItem[]
+  proofs        DeliveryProof[]
 
   @@index([companyId])
   @@index([driverId])
@@ -384,6 +438,60 @@ model DeliveryTripItem {
 
   @@index([tripId])
   @@index([productId])
+}
+
+model DeliveryProof {
+  id               String       @id @default(uuid())
+  companyId        String
+  company          Company      @relation(fields: [companyId], references: [id])
+  tripId           String
+  trip             DeliveryTrip @relation(fields: [tripId], references: [id])
+  customerId       String?
+  customer         Customer?    @relation(fields: [customerId], references: [id])
+  receiverName     String
+  receiverPhone    String?
+  deliveredAt      DateTime     @default(now())
+  latitude         Decimal?     @db.Decimal(10, 7)
+  longitude        Decimal?     @db.Decimal(10, 7)
+  signatureDataUrl String?
+  photoUrl         String?
+  note             String?
+  createdById      String
+  createdBy        User         @relation(fields: [createdById], references: [id])
+  createdAt        DateTime     @default(now())
+
+  @@index([companyId])
+  @@index([tripId])
+  @@index([customerId])
+  @@index([createdAt])
+}
+
+model DebtCollectionActivity {
+  id             String                   @id @default(uuid())
+  companyId      String
+  company        Company                  @relation(fields: [companyId], references: [id])
+  customerId     String
+  customer       Customer                 @relation(fields: [customerId], references: [id])
+  invoiceId      String?
+  invoice        Invoice?                 @relation(fields: [invoiceId], references: [id])
+  actionType     DebtCollectionActionType
+  status         DebtCollectionStatus     @default(OPEN)
+  note           String?
+  promisedAmount Decimal?                 @db.Decimal(14, 2)
+  promisedDate   DateTime?
+  nextFollowUpAt DateTime?
+  createdById    String
+  createdBy      User                     @relation(fields: [createdById], references: [id])
+  completedAt    DateTime?
+  createdAt      DateTime                 @default(now())
+  updatedAt      DateTime                 @updatedAt
+
+  @@index([companyId])
+  @@index([customerId])
+  @@index([invoiceId])
+  @@index([status])
+  @@index([nextFollowUpAt])
+  @@index([createdAt])
 }
 
 model Expense {

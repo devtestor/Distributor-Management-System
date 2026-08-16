@@ -33,9 +33,12 @@ import {
   ApiAuditLog,
   ApiCompanyProfile,
   ApiCustomer,
+  ApiDebtCollectionActivity,
   ApiDeliveryTrip,
+  ApiDriverAccountabilityReport,
   ApiEmptyContainerMovement,
   ApiInvoice,
+  ApiPayment,
   ApiProduct,
   ApiProductPriceHistory,
   ApiRole,
@@ -49,7 +52,9 @@ import {
   cancelInvoice,
   changeMyPassword,
   createDeliveryTrip,
+  createDeliveryProof,
   createCustomer,
+  createDebtCollectionActivity,
   createProduct,
   createInvoice,
   createUser,
@@ -75,7 +80,9 @@ import {
   getProducts,
   getRoles,
   getDebtReport,
+  getDebtCollectionActivities,
   getEmptiesReport,
+  getDriverAccountabilityReport,
   getSalesReport,
   getStockReport,
   getUsers,
@@ -86,11 +93,14 @@ import {
   OwnerDashboardResponse,
   receiveStock,
   reconcileDeliveryTrip,
+  reconcilePayment,
   resetUserPassword,
   recordEmptyContainerMovement,
   recordPayment,
   updateCompanyProfile,
   updateCustomer,
+  updateDebtCollectionActivity,
+  updateInvoiceEbmStatus,
   updateProduct,
   updateUser,
   updateVehicle,
@@ -162,10 +172,12 @@ export default function Home() {
   const [apiProducts, setApiProducts] = useState<ApiProduct[]>([]);
   const [apiCustomers, setApiCustomers] = useState<ApiCustomer[]>([]);
   const [apiTrips, setApiTrips] = useState<ApiDeliveryTrip[]>([]);
+  const [apiPayments, setApiPayments] = useState<ApiPayment[]>([]);
   const [apiVehicles, setApiVehicles] = useState<ApiVehicle[]>([]);
   const [apiWarehouses, setApiWarehouses] = useState<ApiWarehouse[]>([]);
   const [apiInvoices, setApiInvoices] = useState<ApiInvoice[]>([]);
   const [apiEmptyMovements, setApiEmptyMovements] = useState<ApiEmptyContainerMovement[]>([]);
+  const [apiDebtCollections, setApiDebtCollections] = useState<ApiDebtCollectionActivity[]>([]);
   const [apiUsers, setApiUsers] = useState<ApiUser[]>([]);
   const [apiRoles, setApiRoles] = useState<ApiRole[]>([]);
   const [apiAuditLogs, setApiAuditLogs] = useState<ApiAuditLog[]>([]);
@@ -173,6 +185,7 @@ export default function Home() {
   const [stockReport, setStockReport] = useState<ApiStockReport | null>(null);
   const [debtReport, setDebtReport] = useState<ApiDebtReport | null>(null);
   const [emptiesReport, setEmptiesReport] = useState<ApiEmptiesReport | null>(null);
+  const [driverAccountabilityReport, setDriverAccountabilityReport] = useState<ApiDriverAccountabilityReport | null>(null);
   const [productPriceHistory, setProductPriceHistory] = useState<ApiProductPriceHistory[]>([]);
   const [productFormMode, setProductFormMode] = useState<ProductFormMode>("edit");
   const [apiStatus, setApiStatus] = useState<"mock" | "connected">("mock");
@@ -231,6 +244,26 @@ export default function Home() {
     movementType: "RETURNED_BY_CUSTOMER" as "ISSUED_TO_CUSTOMER" | "RETURNED_BY_CUSTOMER" | "ADJUSTMENT" | "LOST",
     quantity: 1,
     referenceType: ""
+  });
+  const [proofForm, setProofForm] = useState({
+    tripId: "",
+    customerId: "",
+    receiverName: "",
+    receiverPhone: "",
+    signatureDataUrl: "",
+    photoUrl: "",
+    latitude: "",
+    longitude: "",
+    note: ""
+  });
+  const [collectionForm, setCollectionForm] = useState({
+    customerId: "",
+    invoiceId: "",
+    actionType: "CALL" as ApiDebtCollectionActivity["actionType"],
+    note: "",
+    promisedAmount: 0,
+    promisedDate: "",
+    nextFollowUpAt: ""
   });
   const [customerFormMode, setCustomerFormMode] = useState<"create" | "edit">("create");
   const [accountForm, setAccountForm] = useState({
@@ -339,10 +372,12 @@ export default function Home() {
     setApiProducts([]);
     setApiCustomers([]);
     setApiTrips([]);
+    setApiPayments([]);
     setApiVehicles([]);
     setApiWarehouses([]);
     setApiInvoices([]);
     setApiEmptyMovements([]);
+    setApiDebtCollections([]);
     setApiUsers([]);
     setApiRoles([]);
     setApiAuditLogs([]);
@@ -350,6 +385,7 @@ export default function Home() {
     setStockReport(null);
     setDebtReport(null);
     setEmptiesReport(null);
+    setDriverAccountabilityReport(null);
     setProductPriceHistory([]);
   }, []);
 
@@ -390,7 +426,8 @@ export default function Home() {
           rawVehicles,
           rawWarehouses,
           rawInvoices,
-          rawEmptyMovements
+          rawEmptyMovements,
+          rawDebtCollections
         ] = await Promise.all([
           optionalLiveData(getCompanyProfile(token), defaultCompanyProfile),
           canReadOwnerDashboard ? optionalLiveData(getOwnerDashboard(token), null) : Promise.resolve(null),
@@ -402,20 +439,22 @@ export default function Home() {
           canReadVehicles ? optionalLiveData(getVehicles(token), []) : Promise.resolve([]),
           canReadInventory ? optionalLiveData(getWarehouses(token), []) : Promise.resolve([]),
           canReadFinancialRecords ? optionalLiveData(getInvoices(token), []) : Promise.resolve([]),
-          canReadEmptyReturns ? optionalLiveData(getEmptyContainerMovements(token), []) : Promise.resolve([])
+          canReadEmptyReturns ? optionalLiveData(getEmptyContainerMovements(token), []) : Promise.resolve([]),
+          canReadFinancialRecords ? optionalLiveData(getDebtCollectionActivities(token), []) : Promise.resolve([])
         ]);
 
         const canManageUsers = profile.role === "OWNER" || profile.role === "ADMIN";
         const isOwner = profile.role === "OWNER";
         const canReadReports = profile.role === "OWNER" || profile.role === "ADMIN" || profile.role === "ACCOUNTANT";
-        const [rawUsers, rawRoles, rawAuditLogs, rawSalesReport, rawStockReport, rawDebtReport, rawEmptiesReport] = await Promise.all([
+        const [rawUsers, rawRoles, rawAuditLogs, rawSalesReport, rawStockReport, rawDebtReport, rawEmptiesReport, rawDriverReport] = await Promise.all([
           canManageUsers ? optionalLiveData(getUsers(token), []) : Promise.resolve([]),
           canManageUsers ? optionalLiveData(getRoles(token), []) : Promise.resolve([]),
           isOwner ? optionalLiveData(getAuditLogs(token), []) : Promise.resolve([]),
           canReadReports ? optionalLiveData(getSalesReport(token), null) : Promise.resolve(null),
           canReadReports ? optionalLiveData(getStockReport(token), null) : Promise.resolve(null),
           canReadReports ? optionalLiveData(getDebtReport(token), null) : Promise.resolve(null),
-          canReadReports ? optionalLiveData(getEmptiesReport(token), null) : Promise.resolve(null)
+          canReadReports ? optionalLiveData(getEmptiesReport(token), null) : Promise.resolve(null),
+          canReadReports ? optionalLiveData(getDriverAccountabilityReport(token), null) : Promise.resolve(null)
         ]);
         const balances: Customer[] = rawCustomers.map((customer) => ({
           id: customer.id,
@@ -443,10 +482,12 @@ export default function Home() {
         setApiProducts(rawProducts);
         setApiCustomers(rawCustomers);
         setApiTrips(rawTrips);
+        setApiPayments(rawPayments);
         setApiVehicles(rawVehicles);
         setApiWarehouses(rawWarehouses);
         setApiInvoices(rawInvoices);
         setApiEmptyMovements(rawEmptyMovements);
+        setApiDebtCollections(rawDebtCollections);
         setApiUsers(rawUsers);
         setApiRoles(rawRoles);
         setApiAuditLogs(rawAuditLogs);
@@ -454,6 +495,7 @@ export default function Home() {
         setStockReport(rawStockReport);
         setDebtReport(rawDebtReport);
         setEmptiesReport(rawEmptiesReport);
+        setDriverAccountabilityReport(rawDriverReport);
         setLiveProducts(stockItems.map((item) => mapLiveProduct(item, rawProducts.find((product) => product.id === item.id))));
         setLiveCustomers(balances);
         setLivePayments(rawPayments.map(mapLivePayment));
@@ -566,6 +608,13 @@ export default function Home() {
         if (draft.type === "empties") {
           await recordEmptyContainerMovement(accessToken, draft.payload as Parameters<typeof recordEmptyContainerMovement>[1]);
         }
+        if (draft.type === "proof") {
+          const payload = draft.payload as { tripId: string; data: Parameters<typeof createDeliveryProof>[2] };
+          await createDeliveryProof(accessToken, payload.tripId, payload.data);
+        }
+        if (draft.type === "collection") {
+          await createDebtCollectionActivity(accessToken, draft.payload as Parameters<typeof createDebtCollectionActivity>[1]);
+        }
         remaining.shift();
         saveOfflineDrafts(remaining);
       }
@@ -593,10 +642,13 @@ export default function Home() {
   const canManageCustomers = Boolean(user?.role && ["OWNER", "ADMIN"].includes(user.role));
   const canCreateDeliveries = Boolean(user?.role && ["OWNER", "ADMIN", "WAREHOUSE_MANAGER"].includes(user.role));
   const canReconcileDeliveries = Boolean(user?.role && ["OWNER", "ADMIN", "WAREHOUSE_MANAGER", "DRIVER"].includes(user.role));
+  const canRecordDeliveryProof = Boolean(user?.role && ["OWNER", "ADMIN", "WAREHOUSE_MANAGER", "DRIVER", "SALESPERSON"].includes(user.role));
   const canRecordEmptyReturns = Boolean(
     user?.role && ["OWNER", "ADMIN", "WAREHOUSE_MANAGER", "SALESPERSON"].includes(user.role)
   );
   const canRecordPayments = Boolean(user?.role && ["OWNER", "ADMIN", "ACCOUNTANT", "SALESPERSON"].includes(user.role));
+  const canReconcilePayments = Boolean(user?.role && ["OWNER", "ADMIN"].includes(user.role));
+  const canRecordCollections = Boolean(user?.role && ["OWNER", "ADMIN", "ACCOUNTANT", "SALESPERSON"].includes(user.role));
   const assignableRoles = apiRoles.filter((role) => user?.role === "OWNER" || role.name !== "OWNER");
   const openTrips = apiTrips.filter((trip) => trip.status !== "CLOSED");
   const driverUsers = apiUsers.filter((account) => account.role === "DRIVER" && account.isActive !== false);
@@ -883,6 +935,35 @@ export default function Home() {
         items: buildReconcileItems(firstTrip)
       });
     }
+
+    if (action === "proof") {
+      const firstTrip = openTrips[0] ?? apiTrips[0];
+      setProofForm({
+        tripId: firstTrip?.id ?? "",
+        customerId: apiCustomers[0]?.id ?? "",
+        receiverName: "",
+        receiverPhone: "",
+        signatureDataUrl: "",
+        photoUrl: "",
+        latitude: "",
+        longitude: "",
+        note: ""
+      });
+    }
+
+    if (action === "collection") {
+      const firstCustomerId = apiCustomers[0]?.id ?? "";
+      const firstInvoice = apiInvoices.find((invoice) => invoice.customerId === firstCustomerId && invoice.paymentStatus !== "PAID");
+      setCollectionForm({
+        customerId: firstCustomerId,
+        invoiceId: firstInvoice?.id ?? "",
+        actionType: "CALL",
+        note: "",
+        promisedAmount: 0,
+        promisedDate: "",
+        nextFollowUpAt: ""
+      });
+    }
   }
 
   async function runAction(task: () => Promise<void>, successMessage: string) {
@@ -1055,6 +1136,98 @@ export default function Home() {
         await reconcileDeliveryTrip(accessToken, reconcileForm.tripId, payload);
       },
       t("reconcileTruck")
+    );
+  }
+
+  async function submitDeliveryProof(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (!accessToken || !proofForm.tripId) return;
+    const payload = {
+      customerId: proofForm.customerId || undefined,
+      receiverName: proofForm.receiverName,
+      receiverPhone: proofForm.receiverPhone || undefined,
+      latitude: proofForm.latitude ? Number(proofForm.latitude) : undefined,
+      longitude: proofForm.longitude ? Number(proofForm.longitude) : undefined,
+      signatureDataUrl: proofForm.signatureDataUrl || undefined,
+      photoUrl: proofForm.photoUrl || undefined,
+      note: proofForm.note || undefined
+    };
+
+    if (!isOnline) {
+      enqueueOfflineDraft("proof", {
+        tripId: proofForm.tripId,
+        data: payload
+      });
+      return;
+    }
+
+    await runAction(
+      async () => {
+        await createDeliveryProof(accessToken, proofForm.tripId, payload);
+      },
+      t("proofSaved")
+    );
+  }
+
+  async function submitCollectionActivity(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (!accessToken || !collectionForm.customerId) return;
+    const payload = {
+      customerId: collectionForm.customerId,
+      invoiceId: collectionForm.invoiceId || undefined,
+      actionType: collectionForm.actionType,
+      note: collectionForm.note || undefined,
+      promisedAmount: collectionForm.promisedAmount || undefined,
+      promisedDate: collectionForm.promisedDate || undefined,
+      nextFollowUpAt: collectionForm.nextFollowUpAt || undefined
+    };
+
+    if (!isOnline) {
+      enqueueOfflineDraft("collection", payload);
+      return;
+    }
+
+    await runAction(
+      async () => {
+        await createDebtCollectionActivity(accessToken, payload);
+      },
+      t("collectionActivitySaved")
+    );
+  }
+
+  async function setPaymentReconciliation(paymentId: string, status: "MATCHED" | "FLAGGED") {
+    if (!accessToken) return;
+    await runAction(
+      async () => {
+        await reconcilePayment(accessToken, paymentId, {
+          reconciliationStatus: status,
+          reconciliationNote: status === "MATCHED" ? "Matched by owner/admin review" : "Flagged for investigation"
+        });
+      },
+      t("paymentReconciliation")
+    );
+  }
+
+  async function markInvoiceEbmSubmitted(invoiceId: string) {
+    if (!accessToken) return;
+    await runAction(
+      async () => {
+        await updateInvoiceEbmStatus(accessToken, invoiceId, {
+          ebmStatus: "SUBMITTED",
+          ebmSubmittedAt: new Date().toISOString()
+        });
+      },
+      t("markEbmSubmitted")
+    );
+  }
+
+  async function completeCollectionActivity(activityId: string) {
+    if (!accessToken) return;
+    await runAction(
+      async () => {
+        await updateDebtCollectionActivity(accessToken, activityId, { status: "COMPLETED" });
+      },
+      t("collectionActivitySaved")
     );
   }
 
@@ -2079,6 +2252,16 @@ export default function Home() {
 	                          {t("createCustomer")}
 	                        </button>
 	                      ) : null}
+	                      {canRecordCollections ? (
+	                        <button
+	                          className="ghost-button"
+	                          disabled={!canUseLiveActions}
+	                          onClick={() => openActionModal("collection")}
+	                          type="button"
+	                        >
+	                          {t("recordCollectionActivity")}
+	                        </button>
+	                      ) : null}
 	                      <Users size={18} color="var(--brand)" aria-hidden="true" />
 	                    </div>
 	                  </div>
@@ -2171,7 +2354,7 @@ export default function Home() {
 	                  <div className="panel-header">
 	                    <h3>{t("deliveries")}</h3>
 	                    <div className="panel-actions">
-	                      {canCreateDeliveries ? (
+	                    {canCreateDeliveries ? (
 	                        <button
 	                          className="ghost-button"
 	                          disabled={!canUseLiveActions}
@@ -2189,6 +2372,16 @@ export default function Home() {
 	                          type="button"
 	                        >
 	                          {t("reconcileTruck")}
+	                        </button>
+	                      ) : null}
+	                      {canRecordDeliveryProof ? (
+	                        <button
+	                          className="ghost-button"
+	                          disabled={!canUseLiveActions}
+	                          onClick={() => openActionModal("proof")}
+	                          type="button"
+	                        >
+	                          {t("recordDeliveryProof")}
 	                        </button>
 	                      ) : null}
 	                      <Route size={18} color="var(--brand)" aria-hidden="true" />
@@ -2262,36 +2455,69 @@ export default function Home() {
                     <th>{t("amount")}</th>
                     <th>{t("reference")}</th>
                     <th>{t("recorded")}</th>
+                    <th>{t("reconciliationStatus")}</th>
                     {isAccountAdmin ? <th>{t("action")}</th> : null}
                   </tr>
                 </thead>
                 <tbody>
-                  {displayedPayments.map((payment) => (
+                  {displayedPayments.map((payment) => {
+                    const apiPayment = apiPayments.find((entry) => entry.id === payment.id);
+                    const reconciliationStatus = apiPayment?.reconciliationStatus ?? "PENDING";
+                    return (
                     <tr key={payment.id}>
                       <td>{payment.customer}</td>
                       <td>{payment.method}</td>
                       <td>{money(payment.amount)}</td>
                       <td>{payment.reference}</td>
                       <td>{payment.recordedAt}</td>
+                      <td>
+                        <span className={`badge ${reconciliationStatus === "MATCHED" ? "good" : reconciliationStatus === "FLAGGED" ? "danger" : "warn"}`}>
+                          {reconciliationStatus === "MATCHED" ? t("matched") : reconciliationStatus === "FLAGGED" ? t("flagged") : t("pending")}
+                        </span>
+                      </td>
                       {isAccountAdmin ? (
                         <td>
-                          <button
-                            aria-label={t("deletePayment")}
-                            className="ghost-button danger-button inline-button"
-                            disabled={isActionSubmitting}
-                            onClick={() => void removePayment(payment)}
-                            title={t("deletePayment")}
-                            type="button"
-                          >
-                            <Trash2 size={14} aria-hidden="true" />
-                          </button>
+                          <div className="inline-actions">
+                            {canReconcilePayments ? (
+                              <>
+                                <button
+                                  className="ghost-button inline-button"
+                                  disabled={isActionSubmitting}
+                                  onClick={() => void setPaymentReconciliation(payment.id, "MATCHED")}
+                                  title={t("matchPayment")}
+                                  type="button"
+                                >
+                                  {t("matched")}
+                                </button>
+                                <button
+                                  className="ghost-button inline-button"
+                                  disabled={isActionSubmitting}
+                                  onClick={() => void setPaymentReconciliation(payment.id, "FLAGGED")}
+                                  title={t("flagPayment")}
+                                  type="button"
+                                >
+                                  {t("flagged")}
+                                </button>
+                              </>
+                            ) : null}
+                            <button
+                              aria-label={t("deletePayment")}
+                              className="ghost-button danger-button inline-button"
+                              disabled={isActionSubmitting}
+                              onClick={() => void removePayment(payment)}
+                              title={t("deletePayment")}
+                              type="button"
+                            >
+                              <Trash2 size={14} aria-hidden="true" />
+                            </button>
+                          </div>
                         </td>
                       ) : null}
                     </tr>
-                  ))}
+                  )})}
                   {displayedPayments.length === 0 ? (
                     <tr>
-                      <td className="table-state" colSpan={isAccountAdmin ? 6 : 5}>
+                      <td className="table-state" colSpan={isAccountAdmin ? 7 : 6}>
                         {isLiveDataLoading ? t("loadingData") : t("noRecords")}
                       </td>
                     </tr>
@@ -3126,6 +3352,169 @@ export default function Home() {
                     </div>
                   </article>
 
+                  <article className="panel">
+                    <div className="panel-header">
+                      <div>
+                        <h3>{t("driverAccountability")}</h3>
+                        <span>{money(driverAccountabilityReport?.totals.cashVariance ?? 0)}</span>
+                      </div>
+                      <button
+                        className="ghost-button"
+                        disabled={!driverAccountabilityReport?.rows.length}
+                        onClick={() => downloadCsv("driver-accountability.csv", driverAccountabilityReport?.rows ?? [])}
+                        type="button"
+                      >
+                        {t("exportCsv")}
+                      </button>
+                    </div>
+                    <div className="table-wrap">
+                      <table>
+                        <thead>
+                          <tr>
+                            <th>{t("driver")}</th>
+                            <th>{t("expectedCash")}</th>
+                            <th>{t("cashCollected")}</th>
+                            <th>{t("cashVariance")}</th>
+                            <th>{t("proofCount")}</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {driverAccountabilityReport?.rows.slice(0, 8).map((row) => (
+                            <tr key={row.tripId}>
+                              <td>
+                                <strong>{row.driver}</strong>
+                                <small>{formatDeliveryArea(row.deliveryArea)} - {row.vehicle}</small>
+                              </td>
+                              <td>{money(row.expectedCash)}</td>
+                              <td>{money(row.cashCollected)}</td>
+                              <td>
+                                <span className={`badge ${row.cashVariance === 0 ? "good" : row.cashVariance < 0 ? "danger" : "warn"}`}>
+                                  {money(row.cashVariance)}
+                                </span>
+                              </td>
+                              <td>{row.proofCount}</td>
+                            </tr>
+                          ))}
+                          {!driverAccountabilityReport?.rows.length ? (
+                            <tr>
+                              <td className="table-state" colSpan={5}>
+                                {isLiveDataLoading ? t("loadingData") : t("noRecords")}
+                              </td>
+                            </tr>
+                          ) : null}
+                        </tbody>
+                      </table>
+                    </div>
+                  </article>
+
+                  <article className="panel">
+                    <div className="panel-header">
+                      <div>
+                        <h3>{t("ebmReadiness")}</h3>
+                        <span>{apiInvoices.filter((invoice) => invoice.ebmStatus === "NOT_SUBMITTED").length} {t("pending")}</span>
+                      </div>
+                      <ReceiptText size={18} color="var(--brand)" aria-hidden="true" />
+                    </div>
+                    <div className="table-wrap">
+                      <table>
+                        <thead>
+                          <tr>
+                            <th>{t("invoice")}</th>
+                            <th>{t("amount")}</th>
+                            <th>{t("ebmStatus")}</th>
+                            {isAccountAdmin ? <th>{t("action")}</th> : null}
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {apiInvoices.slice(0, 8).map((invoice) => (
+                            <tr key={invoice.id}>
+                              <td>
+                                <strong>{invoice.invoiceNumber}</strong>
+                                <small>{invoice.customer.name}</small>
+                              </td>
+                              <td>{money(asNumber(invoice.totalAmount))}</td>
+                              <td>{titleCaseEnum(invoice.ebmStatus)}</td>
+                              {isAccountAdmin ? (
+                                <td>
+                                  <button
+                                    className="ghost-button inline-button"
+                                    disabled={isActionSubmitting || invoice.ebmStatus !== "NOT_SUBMITTED"}
+                                    onClick={() => void markInvoiceEbmSubmitted(invoice.id)}
+                                    type="button"
+                                  >
+                                    {t("markEbmSubmitted")}
+                                  </button>
+                                </td>
+                              ) : null}
+                            </tr>
+                          ))}
+                          {apiInvoices.length === 0 ? (
+                            <tr>
+                              <td className="table-state" colSpan={isAccountAdmin ? 4 : 3}>
+                                {isLiveDataLoading ? t("loadingData") : t("noRecords")}
+                              </td>
+                            </tr>
+                          ) : null}
+                        </tbody>
+                      </table>
+                    </div>
+                  </article>
+
+                  <article className="panel">
+                    <div className="panel-header">
+                      <div>
+                        <h3>{t("debtCollection")}</h3>
+                        <span>{apiDebtCollections.filter((activity) => activity.status === "OPEN").length} {t("pending")}</span>
+                      </div>
+                      <button className="ghost-button" disabled={!canUseLiveActions} onClick={() => openActionModal("collection")} type="button">
+                        {t("recordCollectionActivity")}
+                      </button>
+                    </div>
+                    <div className="table-wrap">
+                      <table>
+                        <thead>
+                          <tr>
+                            <th>{t("customer")}</th>
+                            <th>{t("actionType")}</th>
+                            <th>{t("nextFollowUp")}</th>
+                            <th>{t("status")}</th>
+                            <th>{t("action")}</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {apiDebtCollections.slice(0, 8).map((activity) => (
+                            <tr key={activity.id}>
+                              <td>
+                                <strong>{activity.customer.name}</strong>
+                                <small>{activity.invoice?.invoiceNumber ?? "-"}</small>
+                              </td>
+                              <td>{titleCaseEnum(activity.actionType)}</td>
+                              <td>{activity.nextFollowUpAt ? new Date(activity.nextFollowUpAt).toLocaleDateString("en-RW") : "-"}</td>
+                              <td>{titleCaseEnum(activity.status)}</td>
+                              <td>
+                                <button
+                                  className="ghost-button inline-button"
+                                  disabled={isActionSubmitting || activity.status === "COMPLETED"}
+                                  onClick={() => void completeCollectionActivity(activity.id)}
+                                  type="button"
+                                >
+                                  {t("complete")}
+                                </button>
+                              </td>
+                            </tr>
+                          ))}
+                          {apiDebtCollections.length === 0 ? (
+                            <tr>
+                              <td className="table-state" colSpan={5}>
+                                {isLiveDataLoading ? t("loadingData") : t("noRecords")}
+                              </td>
+                            </tr>
+                          ) : null}
+                        </tbody>
+                      </table>
+                    </div>
+                  </article>
+
                   {user?.role === "OWNER" ? (
                     <article className="panel">
                       <div className="panel-header">
@@ -3193,7 +3582,11 @@ export default function Home() {
                             : t("createCustomer")
                           : activeAction === "empties"
                             ? t("recordEmptyReturn")
-                            : t("recordPayment")}
+                            : activeAction === "proof"
+                              ? t("recordDeliveryProof")
+                              : activeAction === "collection"
+                                ? t("recordCollectionActivity")
+                                : t("recordPayment")}
               </h3>
               <button className="icon-button" onClick={closeActionModal} type="button">
                 <X size={18} aria-hidden="true" />
@@ -3556,6 +3949,214 @@ export default function Home() {
 	                  </button>
 	                  <button className="primary-button" disabled={isActionSubmitting} type="submit">
 	                    {isActionSubmitting ? t("saving") : t("saveEmptyMovement")}
+	                  </button>
+	                </div>
+	              </form>
+	            ) : null}
+
+	            {activeAction === "proof" ? (
+	              <form className="entry-form" onSubmit={submitDeliveryProof}>
+	                <label>
+	                  <span>{t("truck")}</span>
+	                  <select
+	                    required
+	                    value={proofForm.tripId}
+	                    onChange={(event) => setProofForm((current) => ({ ...current, tripId: event.target.value }))}
+	                  >
+	                    {apiTrips.map((trip) => (
+	                      <option key={trip.id} value={trip.id}>
+	                        {trip.vehicle.plateNumber} - {formatDeliveryArea(trip.route)}
+	                      </option>
+	                    ))}
+	                  </select>
+	                </label>
+	                <div className="form-grid">
+	                  <label>
+	                    <span>{t("customer")}</span>
+	                    <select
+	                      value={proofForm.customerId}
+	                      onChange={(event) => setProofForm((current) => ({ ...current, customerId: event.target.value }))}
+	                    >
+	                      <option value="">{t("notSpecified")}</option>
+	                      {apiCustomers.map((customer) => (
+	                        <option key={customer.id} value={customer.id}>
+	                          {customer.name}
+	                        </option>
+	                      ))}
+	                    </select>
+	                  </label>
+	                  <label>
+	                    <span>{t("receiverName")}</span>
+	                    <input
+	                      required
+	                      value={proofForm.receiverName}
+	                      onChange={(event) => setProofForm((current) => ({ ...current, receiverName: event.target.value }))}
+	                    />
+	                  </label>
+	                  <label>
+	                    <span>{t("receiverPhone")}</span>
+	                    <input
+	                      value={proofForm.receiverPhone}
+	                      onChange={(event) => setProofForm((current) => ({ ...current, receiverPhone: event.target.value }))}
+	                    />
+	                  </label>
+	                </div>
+	                <div className="form-grid">
+	                  <label>
+	                    <span>{t("latitude")}</span>
+	                    <input
+	                      inputMode="decimal"
+	                      value={proofForm.latitude}
+	                      onChange={(event) => setProofForm((current) => ({ ...current, latitude: event.target.value }))}
+	                    />
+	                  </label>
+	                  <label>
+	                    <span>{t("longitude")}</span>
+	                    <input
+	                      inputMode="decimal"
+	                      value={proofForm.longitude}
+	                      onChange={(event) => setProofForm((current) => ({ ...current, longitude: event.target.value }))}
+	                    />
+	                  </label>
+	                  <label>
+	                    <span>{t("photoUrl")}</span>
+	                    <input
+	                      value={proofForm.photoUrl}
+	                      onChange={(event) => setProofForm((current) => ({ ...current, photoUrl: event.target.value }))}
+	                    />
+	                  </label>
+	                </div>
+	                <label>
+	                  <span>{t("signature")}</span>
+	                  <textarea
+	                    rows={2}
+	                    value={proofForm.signatureDataUrl}
+	                    onChange={(event) => setProofForm((current) => ({ ...current, signatureDataUrl: event.target.value }))}
+	                  />
+	                </label>
+	                <label>
+	                  <span>{t("note")}</span>
+	                  <textarea
+	                    rows={3}
+	                    value={proofForm.note}
+	                    onChange={(event) => setProofForm((current) => ({ ...current, note: event.target.value }))}
+	                  />
+	                </label>
+	                <div className="modal-actions">
+	                  <button className="ghost-button" onClick={closeActionModal} type="button">
+	                    {t("close")}
+	                  </button>
+	                  <button className="primary-button" disabled={isActionSubmitting} type="submit">
+	                    {isActionSubmitting ? t("saving") : t("recordDeliveryProof")}
+	                  </button>
+	                </div>
+	              </form>
+	            ) : null}
+
+	            {activeAction === "collection" ? (
+	              <form className="entry-form" onSubmit={submitCollectionActivity}>
+	                <div className="form-grid">
+	                  <label>
+	                    <span>{t("customer")}</span>
+	                    <select
+	                      required
+	                      value={collectionForm.customerId}
+	                      onChange={(event) => {
+	                        const customerId = event.target.value;
+	                        const invoice = apiInvoices.find((entry) => entry.customerId === customerId && entry.paymentStatus !== "PAID");
+	                        setCollectionForm((current) => ({ ...current, customerId, invoiceId: invoice?.id ?? "" }));
+	                      }}
+	                    >
+	                      {apiCustomers.map((customer) => (
+	                        <option key={customer.id} value={customer.id}>
+	                          {customer.name}
+	                        </option>
+	                      ))}
+	                    </select>
+	                  </label>
+	                  <label>
+	                    <span>{t("invoice")}</span>
+	                    <select
+	                      value={collectionForm.invoiceId}
+	                      onChange={(event) => setCollectionForm((current) => ({ ...current, invoiceId: event.target.value }))}
+	                    >
+	                      <option value="">{t("notSpecified")}</option>
+	                      {apiInvoices
+	                        .filter((invoice) => invoice.customerId === collectionForm.customerId && invoice.paymentStatus !== "PAID")
+	                        .map((invoice) => (
+	                          <option key={invoice.id} value={invoice.id}>
+	                            {invoice.invoiceNumber} - {money(asNumber(invoice.totalAmount))}
+	                          </option>
+	                        ))}
+	                    </select>
+	                  </label>
+	                  <label>
+	                    <span>{t("actionType")}</span>
+	                    <select
+	                      value={collectionForm.actionType}
+	                      onChange={(event) =>
+	                        setCollectionForm((current) => ({
+	                          ...current,
+	                          actionType: event.target.value as ApiDebtCollectionActivity["actionType"]
+	                        }))
+	                      }
+	                    >
+	                      <option value="CALL">Call</option>
+	                      <option value="VISIT">Visit</option>
+	                      <option value="SMS">SMS</option>
+	                      <option value="WHATSAPP">WhatsApp</option>
+	                      <option value="PROMISE_TO_PAY">Promise to pay</option>
+	                      <option value="PAYMENT_REMINDER">Payment reminder</option>
+	                      <option value="ACCOUNT_BLOCKED">Account blocked</option>
+	                      <option value="NOTE">Note</option>
+	                    </select>
+	                  </label>
+	                </div>
+	                <div className="form-grid">
+	                  <label>
+	                    <span>{t("promisedAmount")}</span>
+	                    <input
+	                      min={0}
+	                      onFocus={selectNumberInput}
+	                      inputMode="decimal"
+	                      type="text"
+	                      value={collectionForm.promisedAmount}
+	                      onChange={(event) =>
+	                        setCollectionForm((current) => ({ ...current, promisedAmount: parseNumericInput(event.target.value) }))
+	                      }
+	                    />
+	                  </label>
+	                  <label>
+	                    <span>{t("promisedDate")}</span>
+	                    <input
+	                      type="date"
+	                      value={collectionForm.promisedDate}
+	                      onChange={(event) => setCollectionForm((current) => ({ ...current, promisedDate: event.target.value }))}
+	                    />
+	                  </label>
+	                  <label>
+	                    <span>{t("nextFollowUp")}</span>
+	                    <input
+	                      type="date"
+	                      value={collectionForm.nextFollowUpAt}
+	                      onChange={(event) => setCollectionForm((current) => ({ ...current, nextFollowUpAt: event.target.value }))}
+	                    />
+	                  </label>
+	                </div>
+	                <label>
+	                  <span>{t("note")}</span>
+	                  <textarea
+	                    rows={3}
+	                    value={collectionForm.note}
+	                    onChange={(event) => setCollectionForm((current) => ({ ...current, note: event.target.value }))}
+	                  />
+	                </label>
+	                <div className="modal-actions">
+	                  <button className="ghost-button" onClick={closeActionModal} type="button">
+	                    {t("close")}
+	                  </button>
+	                  <button className="primary-button" disabled={isActionSubmitting} type="submit">
+	                    {isActionSubmitting ? t("saving") : t("recordCollectionActivity")}
 	                  </button>
 	                </div>
 	              </form>

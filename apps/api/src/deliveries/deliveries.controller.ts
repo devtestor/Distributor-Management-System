@@ -3,6 +3,7 @@ import type { AuthenticatedRequest } from "../common/authenticated-request";
 import type { PaginationQuery } from "../common/pagination";
 import { Roles } from "../common/roles.decorator";
 import { CreateDeliveryTripDto } from "./dto/create-delivery-trip.dto";
+import { CreateDeliveryProofDto } from "./dto/create-delivery-proof.dto";
 import { CreateVehicleDto } from "./dto/create-vehicle.dto";
 import { ReconcileDeliveryTripDto } from "./dto/reconcile-delivery-trip.dto";
 import { UpdateVehicleDto } from "./dto/update-vehicle.dto";
@@ -52,5 +53,11 @@ export class DeliveriesController {
   @Post(":id/reconcile")
   reconcile(@Param("id") id: string, @Body() dto: ReconcileDeliveryTripDto, @Req() request: AuthenticatedRequest) {
     return this.deliveriesService.reconcile(id, dto, request.user.id, request.user.companyId);
+  }
+
+  @Roles("OWNER", "ADMIN", "WAREHOUSE_MANAGER", "DRIVER", "SALESPERSON")
+  @Post(":id/proofs")
+  createProof(@Param("id") id: string, @Body() dto: CreateDeliveryProofDto, @Req() request: AuthenticatedRequest) {
+    return this.deliveriesService.createProof(id, dto, request.user.id, request.user.role, request.user.companyId);
   }
 }

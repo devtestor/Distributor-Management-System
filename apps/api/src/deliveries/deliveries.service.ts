@@ -3,6 +3,7 @@ import { DeliveryStatus, Prisma, StockMovementType } from "@prisma/client";
 import { PrismaService } from "../prisma/prisma.service";
 import { paginationArgs, type PaginationQuery } from "../common/pagination";
 import { CreateDeliveryTripDto } from "./dto/create-delivery-trip.dto";
+import { CreateDeliveryProofDto } from "./dto/create-delivery-proof.dto";
 import { CreateVehicleDto } from "./dto/create-vehicle.dto";
 import { ReconcileDeliveryTripDto } from "./dto/reconcile-delivery-trip.dto";
 import { UpdateVehicleDto } from "./dto/update-vehicle.dto";
@@ -14,7 +15,7 @@ export class DeliveriesService {
   list(actorUserId: string, actorRole: string, companyId: string, query?: PaginationQuery) {
     return this.prisma.deliveryTrip.findMany({
       where: actorRole === "DRIVER" ? { companyId, driverId: actorUserId } : { companyId },
-      include: { driver: true, vehicle: true, items: { include: { product: true } } },
+      include: { driver: true, vehicle: true, items: { include: { product: true } }, proofs: { include: { customer: true, createdBy: true } } },
       orderBy: { createdAt: "desc" },
       ...paginationArgs(query)
     });
@@ -323,6 +324,60 @@ export class DeliveriesService {
 
       return updated;
     });
+  }
+
+  async createProof(tripId: string, dto: CreateDeliveryProofDto, actorUserId: string, actorRole: string, companyId: string) {
+    const trip = await this.prisma.deliveryTrip.findUnique({
+      where: { id: tripId, companyId },
+      select: { id: true, driverId: true, status: true }
+    });
+    if (!trip) throw new NotFoundException("Delivery trip not found");
+    if (actorRole === "DRIVER" && trip.driverId !== actorUserId) {
+      throw new ForbiddenException("Driver can only record proof for assigned trips");
+    }
+
+    if (dto.customerId) {
+      const customer = await this.prisma.customer.findUnique({
+        where: { id: dto.customerId, companyId },
+        select: { id: true }
+      });
+      if (!customer) throw new NotFoundException("Customer not found");
+    }
+
+    const proof = await this.prisma.deliveryProof.create({
+      data: {
+        companyId,
+        tripId,
+        customerId: dto.customerId,
+        receiverName: dto.receiverName,
+        receiverPhone: dto.receiverPhone,
+        deliveredAt: dto.deliveredAt ? new Date(dto.deliveredAt) : undefined,
+        latitude: dto.latitude,
+        longitude: dto.longitude,
+        signatureDataUrl: dto.signatureDataUrl,
+        photoUrl: dto.photoUrl,
+        note: dto.note,
+        createdById: actorUserId
+      },
+      include: { customer: true, createdBy: true }
+    });
+
+    await this.prisma.auditLog.create({
+      data: {
+        userId: actorUserId,
+        companyId,
+        action: "DELIVERY_PROOF_CREATED",
+        entity: "DeliveryProof",
+        entityId: proof.id,
+        metadata: {
+          tripId,
+          customerId: dto.customerId,
+          receiverName: dto.receiverName
+        }
+      }
+    });
+
+    return proof;
   }
 
   private async assertWarehouseStockCanLoad(input: {

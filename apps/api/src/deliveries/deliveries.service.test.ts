@@ -26,7 +26,7 @@ describe("DeliveriesService", () => {
 
     assert.deepEqual(calls[0], {
       where: { companyId: "company-1", driverId: "driver-1" },
-      include: { driver: true, vehicle: true, items: { include: { product: true } } },
+      include: { driver: true, vehicle: true, items: { include: { product: true } }, proofs: { include: { customer: true, createdBy: true } } },
       orderBy: { createdAt: "desc" },
       skip: 10,
       take: 10
@@ -41,7 +41,7 @@ describe("DeliveriesService", () => {
 
     assert.deepEqual(calls[0], {
       where: { companyId: "company-1" },
-      include: { driver: true, vehicle: true, items: { include: { product: true } } },
+      include: { driver: true, vehicle: true, items: { include: { product: true } }, proofs: { include: { customer: true, createdBy: true } } },
       orderBy: { createdAt: "desc" },
       skip: 0,
       take: 100

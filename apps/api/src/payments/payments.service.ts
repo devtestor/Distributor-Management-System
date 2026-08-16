@@ -3,6 +3,7 @@ import { PaymentMethod, PaymentStatus, Prisma } from "@prisma/client";
 import { PrismaService } from "../prisma/prisma.service";
 import { paginationArgs, type PaginationQuery } from "../common/pagination";
 import { CreatePaymentDto } from "./dto/create-payment.dto";
+import { ReconcilePaymentDto } from "./dto/reconcile-payment.dto";
 
 @Injectable()
 export class PaymentsService {
@@ -11,7 +12,7 @@ export class PaymentsService {
   list(actorUserId: string, actorRole: string, companyId: string, query?: PaginationQuery) {
     return this.prisma.payment.findMany({
       where: actorRole === "SALESPERSON" ? { companyId, receivedById: actorUserId } : { companyId },
-      include: { customer: true, invoice: true },
+      include: { customer: true, invoice: true, reconciledBy: true },
       orderBy: { receivedAt: "desc" },
       ...paginationArgs(query)
     });
@@ -121,6 +122,44 @@ export class PaymentsService {
       id: payment.id,
       deletedById: actorUserId
     };
+  }
+
+  async reconcile(paymentId: string, dto: ReconcilePaymentDto, actorUserId: string, companyId: string) {
+    const payment = await this.prisma.payment.findUnique({
+      where: { id: paymentId, companyId },
+      include: { customer: true }
+    });
+    if (!payment) throw new NotFoundException("Payment not found");
+
+    const updated = await this.prisma.payment.update({
+      where: { id: paymentId, companyId },
+      data: {
+        reconciliationStatus: dto.reconciliationStatus,
+        reconciliationNote: dto.reconciliationNote,
+        reconciledAt: new Date(),
+        reconciledById: actorUserId
+      },
+      include: { customer: true, invoice: true, reconciledBy: true }
+    });
+
+    await this.prisma.auditLog.create({
+      data: {
+        userId: actorUserId,
+        companyId,
+        action: "PAYMENT_RECONCILED",
+        entity: "Payment",
+        entityId: payment.id,
+        metadata: {
+          customerId: payment.customerId,
+          method: payment.method,
+          amount: Number(payment.amount),
+          reference: payment.reference,
+          reconciliationStatus: dto.reconciliationStatus
+        }
+      }
+    });
+
+    return updated;
   }
 
   private async refreshInvoicePaymentStatus(invoiceId: string, companyId: string, tx: Prisma.TransactionClient) {
