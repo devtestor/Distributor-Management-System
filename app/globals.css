@@ -1736,6 +1736,34 @@ td strong {
   background: var(--surface-raised);
 }
 
+.summary-strip {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(150px, 1fr));
+  gap: 10px;
+  padding: 14px 18px;
+  border-bottom: 1px solid var(--line);
+  background: color-mix(in srgb, var(--surface-muted) 58%, var(--surface-raised));
+}
+
+.summary-strip span {
+  min-height: 58px;
+  display: grid;
+  align-content: center;
+  gap: 4px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 10px 12px;
+  background: var(--surface-raised);
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 750;
+}
+
+.summary-strip strong {
+  color: var(--text);
+  font-size: 18px;
+}
+
 .inline-actions {
   display: inline-flex;
   align-items: center;
@@ -1820,6 +1848,56 @@ td strong {
   background: linear-gradient(180deg, color-mix(in srgb, var(--brand-soft) 84%, var(--surface-raised)), var(--surface-raised));
   color: var(--brand-strong);
   box-shadow: inset 3px 0 0 var(--brand), var(--shadow-tight);
+}
+
+.field-action {
+  display: grid;
+  gap: 6px;
+  align-content: end;
+  color: color-mix(in srgb, var(--muted) 88%, var(--text));
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.proof-tools {
+  display: grid;
+  grid-template-columns: minmax(0, 1.4fr) minmax(220px, 0.6fr);
+  gap: 14px;
+}
+
+.signature-pad,
+.photo-upload {
+  display: grid;
+  gap: 10px;
+  padding: 14px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: color-mix(in srgb, var(--surface-muted) 58%, var(--surface-raised));
+  box-shadow: var(--shadow-tight);
+}
+
+.signature-pad canvas {
+  width: 100%;
+  height: 180px;
+  display: block;
+  border: 1px dashed color-mix(in srgb, var(--brand) 35%, var(--line));
+  border-radius: 8px;
+  background:
+    linear-gradient(90deg, rgba(8, 112, 85, 0.04) 1px, transparent 1px),
+    linear-gradient(180deg, rgba(8, 112, 85, 0.04) 1px, transparent 1px),
+    var(--surface-raised);
+  background-size: 18px 18px;
+  touch-action: none;
+}
+
+.photo-upload input[type="file"] {
+  min-height: auto;
+  padding: 10px;
+}
+
+.photo-upload small {
+  color: var(--brand-strong);
+  font-weight: 800;
 }
 
 .form-grid {
@@ -1984,6 +2062,14 @@ td strong {
   }
 
   .choice-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .proof-tools {
+    grid-template-columns: 1fr;
+  }
+
+  .summary-strip {
     grid-template-columns: 1fr;
   }
 }

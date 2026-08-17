@@ -17,7 +17,7 @@ import {
   Users,
   X
 } from "lucide-react";
-import { CSSProperties, FocusEvent, FormEvent, useCallback, useEffect, useMemo, useState } from "react";
+import { CSSProperties, FocusEvent, FormEvent, PointerEvent, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { DashboardOverview } from "@/components/dashboard/overview";
 import {
   AuthBand,
@@ -159,8 +159,8 @@ export default function Home() {
   const [locale, setLocale] = useState<Locale>("en");
   const [accessToken, setAccessToken] = useState<string | null>(null);
   const [user, setUser] = useState<ApiUser | null>(null);
-  const [email, setEmail] = useState("owner@example.com");
-  const [password, setPassword] = useState("ChangeMe123!");
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
   const [authError, setAuthError] = useState<string | null>(null);
   const [isLoggingIn, setIsLoggingIn] = useState(false);
   const [ownerDashboard, setOwnerDashboard] = useState<OwnerDashboardResponse | null>(null);
@@ -256,6 +256,8 @@ export default function Home() {
     longitude: "",
     note: ""
   });
+  const signatureCanvasRef = useRef<HTMLCanvasElement | null>(null);
+  const isSigningRef = useRef(false);
   const [collectionForm, setCollectionForm] = useState({
     customerId: "",
     invoiceId: "",
@@ -637,6 +639,22 @@ export default function Home() {
   const displayedCustomers = isAuthenticated ? liveCustomers : customers;
   const displayedDeliveries = isAuthenticated ? liveDeliveries : deliveries;
   const displayedPayments = isAuthenticated ? livePayments : payments;
+  const paymentReconciliationSummary = useMemo(() => {
+    const totalAmount = displayedPayments.reduce((sum, payment) => sum + payment.amount, 0);
+    const matched = apiPayments.filter((payment) => payment.reconciliationStatus === "MATCHED");
+    const flagged = apiPayments.filter((payment) => payment.reconciliationStatus === "FLAGGED");
+    const pending = apiPayments.filter((payment) => payment.reconciliationStatus === "PENDING");
+
+    return {
+      totalAmount,
+      matchedAmount: matched.reduce((sum, payment) => sum + asNumber(payment.amount), 0),
+      flaggedAmount: flagged.reduce((sum, payment) => sum + asNumber(payment.amount), 0),
+      pendingAmount: pending.reduce((sum, payment) => sum + asNumber(payment.amount), 0),
+      matchedCount: matched.length,
+      flaggedCount: flagged.length,
+      pendingCount: pending.length
+    };
+  }, [apiPayments, displayedPayments]);
   const canUseLiveActions = Boolean(accessToken && apiStatus === "connected");
   const canCreateCustomers = Boolean(user?.role && ["OWNER", "ADMIN", "ACCOUNTANT", "SALESPERSON"].includes(user.role));
   const canManageCustomers = Boolean(user?.role && ["OWNER", "ADMIN"].includes(user.role));
@@ -853,6 +871,82 @@ export default function Home() {
   function parseNumericInput(value: string) {
     const normalized = value.replace(/[^\d.]/g, "").replace(/^0+(?=\d)/, "");
     return normalized === "" ? 0 : Number(normalized) || 0;
+  }
+
+  function canvasPoint(event: PointerEvent<HTMLCanvasElement>) {
+    const canvas = event.currentTarget;
+    const rect = canvas.getBoundingClientRect();
+    return {
+      x: ((event.clientX - rect.left) / rect.width) * canvas.width,
+      y: ((event.clientY - rect.top) / rect.height) * canvas.height
+    };
+  }
+
+  function startSignature(event: PointerEvent<HTMLCanvasElement>) {
+    const canvas = event.currentTarget;
+    const context = canvas.getContext("2d");
+    if (!context) return;
+    isSigningRef.current = true;
+    canvas.setPointerCapture(event.pointerId);
+    const point = canvasPoint(event);
+    context.beginPath();
+    context.moveTo(point.x, point.y);
+  }
+
+  function drawSignature(event: PointerEvent<HTMLCanvasElement>) {
+    if (!isSigningRef.current) return;
+    const canvas = event.currentTarget;
+    const context = canvas.getContext("2d");
+    if (!context) return;
+    const point = canvasPoint(event);
+    context.lineWidth = 2.4;
+    context.lineCap = "round";
+    context.strokeStyle = "#087055";
+    context.lineTo(point.x, point.y);
+    context.stroke();
+    setProofForm((current) => ({ ...current, signatureDataUrl: canvas.toDataURL("image/png") }));
+  }
+
+  function stopSignature(event: PointerEvent<HTMLCanvasElement>) {
+    if (!isSigningRef.current) return;
+    isSigningRef.current = false;
+    event.currentTarget.releasePointerCapture(event.pointerId);
+    setProofForm((current) => ({ ...current, signatureDataUrl: event.currentTarget.toDataURL("image/png") }));
+  }
+
+  function clearSignature() {
+    const canvas = signatureCanvasRef.current;
+    const context = canvas?.getContext("2d");
+    if (!canvas || !context) return;
+    context.clearRect(0, 0, canvas.width, canvas.height);
+    setProofForm((current) => ({ ...current, signatureDataUrl: "" }));
+  }
+
+  function attachProofPhoto(file: File | undefined) {
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = () => {
+      setProofForm((current) => ({ ...current, photoUrl: typeof reader.result === "string" ? reader.result : "" }));
+    };
+    reader.readAsDataURL(file);
+  }
+
+  function captureCurrentPosition() {
+    if (!navigator.geolocation) {
+      setActionError("Location is not available on this device.");
+      return;
+    }
+
+    navigator.geolocation.getCurrentPosition(
+      (position) => {
+        setProofForm((current) => ({
+          ...current,
+          latitude: position.coords.latitude.toFixed(6),
+          longitude: position.coords.longitude.toFixed(6)
+        }));
+      },
+      () => setActionError("Unable to read current location.")
+    );
   }
 
   function openActionModal(action: Exclude<ActionType, null>) {
@@ -2446,6 +2540,26 @@ export default function Home() {
 	                    <ShieldCheck size={18} color="var(--brand)" aria-hidden="true" />
 	                  </div>
 	                </div>
+                {activeSection === "payments" ? (
+                  <div className="summary-strip">
+                    <span>
+                      <strong>{money(paymentReconciliationSummary.totalAmount)}</strong>
+                      {t("amount")}
+                    </span>
+                    <span>
+                      <strong>{paymentReconciliationSummary.matchedCount}</strong>
+                      {t("matched")} - {money(paymentReconciliationSummary.matchedAmount)}
+                    </span>
+                    <span>
+                      <strong>{paymentReconciliationSummary.pendingCount}</strong>
+                      {t("pending")} - {money(paymentReconciliationSummary.pendingAmount)}
+                    </span>
+                    <span>
+                      <strong>{paymentReconciliationSummary.flaggedCount}</strong>
+                      {t("flagged")} - {money(paymentReconciliationSummary.flaggedAmount)}
+                    </span>
+                  </div>
+                ) : null}
                 <div className="table-wrap">
                   <table>
                 <thead>
@@ -4022,22 +4136,38 @@ export default function Home() {
 	                      onChange={(event) => setProofForm((current) => ({ ...current, longitude: event.target.value }))}
 	                    />
 	                  </label>
-	                  <label>
-	                    <span>{t("photoUrl")}</span>
-	                    <input
-	                      value={proofForm.photoUrl}
-	                      onChange={(event) => setProofForm((current) => ({ ...current, photoUrl: event.target.value }))}
+	                  <div className="field-action">
+	                    <span>{t("location")}</span>
+	                    <button className="ghost-button" onClick={captureCurrentPosition} type="button">
+	                      {t("captureLocation")}
+	                    </button>
+	                  </div>
+	                </div>
+	                <div className="proof-tools">
+	                  <div className="signature-pad">
+	                    <div className="form-section-header">
+	                      <strong>{t("signature")}</strong>
+	                      <button className="ghost-button inline-button" onClick={clearSignature} type="button">
+	                        {t("clearSignature")}
+	                      </button>
+	                    </div>
+	                    <canvas
+	                      aria-label={t("signature")}
+	                      height={180}
+	                      onPointerDown={startSignature}
+	                      onPointerMove={drawSignature}
+	                      onPointerUp={stopSignature}
+	                      onPointerCancel={stopSignature}
+	                      ref={signatureCanvasRef}
+	                      width={760}
 	                    />
+	                  </div>
+	                  <label className="photo-upload">
+	                    <span>{t("photoUrl")}</span>
+	                    <input accept="image/*" onChange={(event) => attachProofPhoto(event.target.files?.[0])} type="file" />
+	                    {proofForm.photoUrl ? <small>{t("photoAttached")}</small> : null}
 	                  </label>
 	                </div>
-	                <label>
-	                  <span>{t("signature")}</span>
-	                  <textarea
-	                    rows={2}
-	                    value={proofForm.signatureDataUrl}
-	                    onChange={(event) => setProofForm((current) => ({ ...current, signatureDataUrl: event.target.value }))}
-	                  />
-	                </label>
 	                <label>
 	                  <span>{t("note")}</span>
 	                  <textarea
