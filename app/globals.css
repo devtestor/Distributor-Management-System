@@ -1776,6 +1776,52 @@ td strong {
   color: color-mix(in srgb, var(--muted) 88%, var(--text));
 }
 
+.choice-field {
+  display: grid;
+  gap: 7px;
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+
+.choice-field legend {
+  padding: 0;
+  color: color-mix(in srgb, var(--muted) 88%, var(--text));
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.choice-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.choice-button {
+  min-height: 40px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 0 12px;
+  background: var(--surface-raised);
+  color: var(--text);
+  font-weight: 750;
+  text-align: left;
+  box-shadow: var(--shadow-tight);
+  transition: background 140ms ease, border-color 140ms ease, box-shadow 140ms ease, transform 140ms ease;
+}
+
+.choice-button:not(.active):hover {
+  border-color: color-mix(in srgb, var(--brand) 30%, var(--line));
+  transform: translateY(-1px);
+}
+
+.choice-button.active {
+  border-color: color-mix(in srgb, var(--brand) 62%, var(--line));
+  background: linear-gradient(180deg, color-mix(in srgb, var(--brand-soft) 84%, var(--surface-raised)), var(--surface-raised));
+  color: var(--brand-strong);
+  box-shadow: inset 3px 0 0 var(--brand), var(--shadow-tight);
+}
+
 .form-grid {
   gap: 14px;
 }
@@ -1935,5 +1981,9 @@ td strong {
   .modal-actions > button,
   .inline-actions > button {
     width: 100%;
+  }
+
+  .choice-grid {
+    grid-template-columns: 1fr;
   }
 }

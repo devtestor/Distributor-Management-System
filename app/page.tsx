@@ -3887,23 +3887,27 @@ export default function Home() {
 	                      ))}
 	                    </select>
 	                  </label>
-	                  <label>
-	                    <span>{t("movementType")}</span>
-	                    <select
-	                      value={emptyReturnForm.movementType}
-	                      onChange={(event) =>
-	                        setEmptyReturnForm((current) => ({
-	                          ...current,
-	                          movementType: event.target.value as typeof emptyReturnForm.movementType
-	                        }))
-	                      }
-	                    >
-	                      <option value="RETURNED_BY_CUSTOMER">{t("emptiesReturned")}</option>
-	                      <option value="ISSUED_TO_CUSTOMER">{t("emptiesIssued")}</option>
-	                      <option value="LOST">{t("emptiesLost")}</option>
-	                      <option value="ADJUSTMENT">{t("emptiesAdjustment")}</option>
-	                    </select>
-	                  </label>
+	                  <fieldset className="choice-field">
+	                    <legend>{t("movementType")}</legend>
+	                    <div className="choice-grid">
+	                      {[
+	                        { value: "RETURNED_BY_CUSTOMER" as const, label: t("emptiesReturned") },
+	                        { value: "ISSUED_TO_CUSTOMER" as const, label: t("emptiesIssued") },
+	                        { value: "LOST" as const, label: t("emptiesLost") },
+	                        { value: "ADJUSTMENT" as const, label: t("emptiesAdjustment") }
+	                      ].map((option) => (
+	                        <button
+	                          aria-pressed={emptyReturnForm.movementType === option.value}
+	                          className={`choice-button ${emptyReturnForm.movementType === option.value ? "active" : ""}`}
+	                          key={option.value}
+	                          onClick={() => setEmptyReturnForm((current) => ({ ...current, movementType: option.value }))}
+	                          type="button"
+	                        >
+	                          {option.label}
+	                        </button>
+	                      ))}
+	                    </div>
+	                  </fieldset>
 	                  <label>
 	                    <span>{t("quantity")}</span>
 	                    <input
