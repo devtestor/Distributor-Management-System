@@ -2,6 +2,7 @@ import { BadRequestException, Inject, Injectable, NotFoundException } from "@nes
 import { EmptyMovementType } from "@prisma/client";
 import { PrismaService } from "../prisma/prisma.service";
 import { paginationArgs, type PaginationQuery } from "../common/pagination";
+import { publicUserSelect } from "../common/public-user-select";
 import { CreateEmptyContainerMovementDto } from "./dto/create-empty-container-movement.dto";
 
 @Injectable()
@@ -14,9 +15,7 @@ export class EmptyContainersService {
       include: {
         customer: true,
         product: true,
-        createdBy: {
-          include: { role: true }
-        }
+        createdBy: { select: publicUserSelect }
       },
       orderBy: { createdAt: "desc" },
       ...paginationArgs(query, 100, 500)
@@ -59,7 +58,7 @@ export class EmptyContainersService {
           companyId,
           createdById
         },
-        include: { customer: true, product: true, createdBy: { include: { role: true } } }
+        include: { customer: true, product: true, createdBy: { select: publicUserSelect } }
       });
 
       await tx.auditLog.create({

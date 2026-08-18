@@ -2,6 +2,7 @@ import { BadRequestException, ForbiddenException, Inject, Injectable, NotFoundEx
 import { DeliveryStatus, Prisma, StockMovementType } from "@prisma/client";
 import { PrismaService } from "../prisma/prisma.service";
 import { paginationArgs, type PaginationQuery } from "../common/pagination";
+import { publicUserSelect } from "../common/public-user-select";
 import { CreateDeliveryTripDto } from "./dto/create-delivery-trip.dto";
 import { CreateDeliveryProofDto } from "./dto/create-delivery-proof.dto";
 import { CreateVehicleDto } from "./dto/create-vehicle.dto";
@@ -15,7 +16,12 @@ export class DeliveriesService {
   list(actorUserId: string, actorRole: string, companyId: string, query?: PaginationQuery) {
     return this.prisma.deliveryTrip.findMany({
       where: actorRole === "DRIVER" ? { companyId, driverId: actorUserId } : { companyId },
-      include: { driver: true, vehicle: true, items: { include: { product: true } }, proofs: { include: { customer: true, createdBy: true } } },
+      include: {
+        driver: { select: publicUserSelect },
+        vehicle: true,
+        items: { include: { product: true } },
+        proofs: { include: { customer: true, createdBy: { select: publicUserSelect } } }
+      },
       orderBy: { createdAt: "desc" },
       ...paginationArgs(query)
     });
@@ -24,7 +30,7 @@ export class DeliveriesService {
   listVehicles(companyId: string) {
     return this.prisma.vehicle.findMany({
       where: { companyId },
-      include: { driver: true },
+      include: { driver: { select: publicUserSelect } },
       orderBy: { plateNumber: "asc" }
     });
   }
@@ -41,7 +47,7 @@ export class DeliveriesService {
           plateNumber: dto.plateNumber,
           driverId: dto.driverId
         },
-        include: { driver: true }
+        include: { driver: { select: publicUserSelect } }
       });
 
       await this.prisma.auditLog.create({
@@ -85,7 +91,7 @@ export class DeliveriesService {
           driverId: dto.driverId === "" ? null : dto.driverId,
           isActive: dto.isActive
         },
-        include: { driver: true }
+        include: { driver: { select: publicUserSelect } }
       });
 
       await this.prisma.auditLog.create({
@@ -184,7 +190,7 @@ export class DeliveriesService {
             create: dto.items
           }
         },
-        include: { driver: true, vehicle: true, items: { include: { product: true } } }
+        include: { driver: { select: publicUserSelect }, vehicle: true, items: { include: { product: true } } }
       });
 
       for (const item of trip.items) {
@@ -304,7 +310,7 @@ export class DeliveriesService {
           creditIssued: dto.creditIssued,
           returnedAt: new Date()
         },
-        include: { driver: true, vehicle: true, items: { include: { product: true } } }
+        include: { driver: { select: publicUserSelect }, vehicle: true, items: { include: { product: true } } }
       });
 
       await tx.auditLog.create({
@@ -359,7 +365,7 @@ export class DeliveriesService {
         note: dto.note,
         createdById: actorUserId
       },
-      include: { customer: true, createdBy: true }
+      include: { customer: true, createdBy: { select: publicUserSelect } }
     });
 
     await this.prisma.auditLog.create({

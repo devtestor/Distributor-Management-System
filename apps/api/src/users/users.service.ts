@@ -3,6 +3,7 @@ import { Prisma } from "@prisma/client";
 import bcrypt from "bcryptjs";
 import { PrismaService } from "../prisma/prisma.service";
 import { paginationArgs, type PaginationQuery } from "../common/pagination";
+import { publicUserSelect } from "../common/public-user-select";
 import { ChangePasswordDto } from "./dto/change-password.dto";
 import { CreateUserDto } from "./dto/create-user.dto";
 import { ResetPasswordDto } from "./dto/reset-password.dto";
@@ -22,9 +23,7 @@ export class UsersService {
     return this.prisma.auditLog.findMany({
       where: { companyId },
       include: {
-        user: {
-          include: { role: true }
-        }
+        user: { select: publicUserSelect }
       },
       orderBy: { createdAt: "desc" },
       ...paginationArgs(query, 100, 500)

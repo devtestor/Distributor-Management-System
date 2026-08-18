@@ -1,6 +1,7 @@
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
 import { DeliveriesService } from "./deliveries.service";
+import { publicUserSelect } from "../common/public-user-select";
 
 function createPrismaMock() {
   const calls: unknown[] = [];
@@ -26,7 +27,12 @@ describe("DeliveriesService", () => {
 
     assert.deepEqual(calls[0], {
       where: { companyId: "company-1", driverId: "driver-1" },
-      include: { driver: true, vehicle: true, items: { include: { product: true } }, proofs: { include: { customer: true, createdBy: true } } },
+      include: {
+        driver: { select: publicUserSelect },
+        vehicle: true,
+        items: { include: { product: true } },
+        proofs: { include: { customer: true, createdBy: { select: publicUserSelect } } }
+      },
       orderBy: { createdAt: "desc" },
       skip: 10,
       take: 10
@@ -41,7 +47,12 @@ describe("DeliveriesService", () => {
 
     assert.deepEqual(calls[0], {
       where: { companyId: "company-1" },
-      include: { driver: true, vehicle: true, items: { include: { product: true } }, proofs: { include: { customer: true, createdBy: true } } },
+      include: {
+        driver: { select: publicUserSelect },
+        vehicle: true,
+        items: { include: { product: true } },
+        proofs: { include: { customer: true, createdBy: { select: publicUserSelect } } }
+      },
       orderBy: { createdAt: "desc" },
       skip: 0,
       take: 100

@@ -2,6 +2,7 @@ import { BadRequestException, ConflictException, Inject, Injectable, NotFoundExc
 import { Prisma } from "@prisma/client";
 import { PrismaService } from "../prisma/prisma.service";
 import { paginationArgs, type PaginationQuery } from "../common/pagination";
+import { publicUserSelect } from "../common/public-user-select";
 import { CreateProductDto } from "./dto/create-product.dto";
 import { UpdateProductDto } from "./dto/update-product.dto";
 
@@ -138,9 +139,7 @@ export class ProductsService {
     return this.prisma.productPriceHistory.findMany({
       where: { productId, companyId },
       include: {
-        changedBy: {
-          include: { role: true }
-        }
+        changedBy: { select: publicUserSelect }
       },
       orderBy: { createdAt: "desc" },
       take: 50

@@ -2,6 +2,7 @@ import { BadRequestException, Inject, Injectable, NotFoundException } from "@nes
 import { DebtCollectionStatus, EmptyMovementType, InvoiceStatus } from "@prisma/client";
 import { PrismaService } from "../prisma/prisma.service";
 import { paginationArgs, type PaginationQuery } from "../common/pagination";
+import { publicUserSelect } from "../common/public-user-select";
 import { CreateDebtCollectionActivityDto } from "./dto/create-debt-collection-activity.dto";
 import { CreateCustomerDto } from "./dto/create-customer.dto";
 import { UpdateDebtCollectionActivityDto } from "./dto/update-debt-collection-activity.dto";
@@ -296,7 +297,7 @@ export class CustomersService {
       include: {
         customer: true,
         invoice: true,
-        createdBy: { include: { role: true } }
+        createdBy: { select: publicUserSelect }
       },
       orderBy: [{ status: "asc" }, { nextFollowUpAt: "asc" }, { createdAt: "desc" }]
     });
@@ -326,7 +327,7 @@ export class CustomersService {
         createdById: actorUserId,
         completedAt: dto.status === DebtCollectionStatus.COMPLETED ? new Date() : undefined
       },
-      include: { customer: true, invoice: true, createdBy: { include: { role: true } } }
+      include: { customer: true, invoice: true, createdBy: { select: publicUserSelect } }
     });
 
     await this.prisma.auditLog.create({
@@ -361,7 +362,7 @@ export class CustomersService {
         nextFollowUpAt: dto.nextFollowUpAt ? new Date(dto.nextFollowUpAt) : activity.nextFollowUpAt,
         completedAt: dto.status === DebtCollectionStatus.COMPLETED ? new Date() : activity.completedAt
       },
-      include: { customer: true, invoice: true, createdBy: { include: { role: true } } }
+      include: { customer: true, invoice: true, createdBy: { select: publicUserSelect } }
     });
 
     await this.prisma.auditLog.create({

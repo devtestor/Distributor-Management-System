@@ -1,6 +1,7 @@
 import { BadRequestException, Inject, Injectable } from "@nestjs/common";
 import { EmptyMovementType, InvoiceStatus, PaymentStatus, StockMovementType } from "@prisma/client";
 import { PrismaService } from "../prisma/prisma.service";
+import { publicUserSelect } from "../common/public-user-select";
 
 const inboundStock = new Set<StockMovementType>([
   StockMovementType.PURCHASE_RECEIPT,
@@ -210,7 +211,7 @@ export class ReportsService {
     const trips = await this.prisma.deliveryTrip.findMany({
       where: { companyId },
       include: {
-        driver: true,
+        driver: { select: publicUserSelect },
         vehicle: true,
         items: { include: { product: true } },
         proofs: true

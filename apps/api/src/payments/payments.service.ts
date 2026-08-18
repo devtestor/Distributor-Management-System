@@ -2,6 +2,7 @@ import { BadRequestException, Inject, Injectable, NotFoundException } from "@nes
 import { PaymentMethod, PaymentStatus, Prisma } from "@prisma/client";
 import { PrismaService } from "../prisma/prisma.service";
 import { paginationArgs, type PaginationQuery } from "../common/pagination";
+import { publicUserSelect } from "../common/public-user-select";
 import { CreatePaymentDto } from "./dto/create-payment.dto";
 import { ReconcilePaymentDto } from "./dto/reconcile-payment.dto";
 
@@ -12,7 +13,7 @@ export class PaymentsService {
   list(actorUserId: string, actorRole: string, companyId: string, query?: PaginationQuery) {
     return this.prisma.payment.findMany({
       where: actorRole === "SALESPERSON" ? { companyId, receivedById: actorUserId } : { companyId },
-      include: { customer: true, invoice: true, reconciledBy: true },
+      include: { customer: true, invoice: true, reconciledBy: { select: publicUserSelect } },
       orderBy: { receivedAt: "desc" },
       ...paginationArgs(query)
     });
@@ -139,7 +140,7 @@ export class PaymentsService {
         reconciledAt: new Date(),
         reconciledById: actorUserId
       },
-      include: { customer: true, invoice: true, reconciledBy: true }
+      include: { customer: true, invoice: true, reconciledBy: { select: publicUserSelect } }
     });
 
     await this.prisma.auditLog.create({

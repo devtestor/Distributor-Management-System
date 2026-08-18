@@ -3,6 +3,7 @@ import { randomUUID } from "crypto";
 import { Prisma, StockMovementType } from "@prisma/client";
 import { PrismaService } from "../prisma/prisma.service";
 import { paginationArgs, type PaginationQuery } from "../common/pagination";
+import { publicUserSelect } from "../common/public-user-select";
 import { CreateWarehouseDto } from "./dto/create-warehouse.dto";
 import { StockCountDto } from "./dto/stock-count.dto";
 import { StockMovementDto } from "./dto/stock-movement.dto";
@@ -126,9 +127,7 @@ export class StockService {
       include: {
         product: true,
         warehouse: true,
-        createdBy: {
-          include: { role: true }
-        }
+        createdBy: { select: publicUserSelect }
       },
       orderBy: { createdAt: "desc" },
       ...paginationArgs(query, 100, 500)
@@ -203,9 +202,7 @@ export class StockService {
         include: {
           product: true,
           warehouse: true,
-          createdBy: {
-            include: { role: true }
-          }
+          createdBy: { select: publicUserSelect }
         }
       });
 
@@ -337,9 +334,7 @@ export class StockService {
         include: {
           product: true,
           warehouse: true,
-          createdBy: {
-            include: { role: true }
-          }
+          createdBy: { select: publicUserSelect }
         }
       });
 
