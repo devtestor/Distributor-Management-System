@@ -320,11 +320,11 @@ export default function Home() {
   const tenantTheme = useMemo(
     () =>
       ({
-        "--brand": companyProfile.primaryColor,
-        "--brand-strong": companyProfile.primaryColor,
+        "--brand": colorMode === "dark" ? "#7ee0bd" : companyProfile.primaryColor,
+        "--brand-strong": colorMode === "dark" ? "#7ee0bd" : companyProfile.primaryColor,
         "--tenant-accent": companyProfile.secondaryColor
       }) as CSSProperties,
-    [companyProfile.primaryColor, companyProfile.secondaryColor]
+    [colorMode, companyProfile.primaryColor, companyProfile.secondaryColor]
   );
 
   function toggleColorMode() {

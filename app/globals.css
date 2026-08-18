@@ -2012,6 +2012,122 @@ td strong {
   color: #ffb6b0;
 }
 
+.app-shell[data-theme="dark"] :where(
+  .content,
+  .panel,
+  .panel-header,
+  .panel-body,
+  .kpi-card,
+  .auth-band,
+  .sync-banner,
+  .modal-card,
+  .modal-header,
+  .entry-form,
+  .form-section,
+  .reconcile-row,
+  .trip-summary,
+  .action-card,
+  .alert-list li,
+  .empties-spotlight,
+  .empties-priority,
+  .priority-row,
+  .summary-strip span,
+  .report-kpis span,
+  .signature-pad,
+  .photo-upload
+) {
+  color: #f5fbf7;
+}
+
+.app-shell[data-theme="dark"] :where(
+  h1,
+  h2,
+  h3,
+  h4,
+  strong,
+  b,
+  label,
+  legend,
+  th,
+  td,
+  input,
+  select,
+  textarea,
+  .theme-toggle,
+  .ghost-button,
+  .icon-button,
+  .choice-button,
+  .table-action,
+  .date-pill,
+  .language-switcher button
+) {
+  color: #f5fbf7;
+}
+
+.app-shell[data-theme="dark"] :where(
+  p,
+  small,
+  .panel-header span,
+  .kpi-card p,
+  .alert-list span,
+  .action-card span,
+  .summary-strip span,
+  .table-state,
+  .entry-form label,
+  .choice-field legend,
+  .field-action,
+  .priority-header span,
+  .priority-row small,
+  .empties-copy p,
+  .empties-actions span
+) {
+  color: #c5d2ca;
+}
+
+.app-shell[data-theme="dark"] :where(
+  .language-switcher button.active,
+  .choice-button.active,
+  .photo-upload small,
+  .feature-kicker,
+  .priority-row b
+) {
+  color: #7ee0bd;
+}
+
+.app-shell[data-theme="dark"] :where(
+  .theme-toggle svg,
+  .ghost-button svg,
+  .icon-button svg,
+  .table-action svg,
+  .action-card svg,
+  .panel-header svg,
+  .search svg
+) {
+  color: #7ee0bd;
+}
+
+.app-shell[data-theme="dark"] :where(input, select, textarea)::placeholder {
+  color: #93a39a;
+}
+
+.app-shell[data-theme="dark"] :where(.badge.good) {
+  background: #143d31;
+  border-color: #266d57;
+  color: #9df0cf;
+}
+
+.app-shell[data-theme="dark"] :where(.badge.warn, .pill-action.warn) {
+  background: #463415;
+  border-color: #7b5a20;
+  color: #ffd98a;
+}
+
+.app-shell[data-theme="dark"] :where(.badge.danger) {
+  background: #4a201d;
+  border-color: #7d3933;
+  color: #ffb6b0;
+}
+
 @media (max-width: 1180px) {
   .content {
     padding: 24px 22px 36px;
