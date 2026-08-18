@@ -1247,8 +1247,8 @@ td small {
   --surface-raised: #1b241f;
   --surface-muted: #202a25;
   --surface-warm: #2b281d;
-  --text: #eef5f0;
-  --muted: #a8b7af;
+  --text: #f4faf6;
+  --muted: #c3d0c8;
   --line: #2d3832;
   --line-strong: #3a4740;
   --brand-soft: #12382d;
@@ -1460,6 +1460,7 @@ textarea:focus-visible {
   font-size: 42px;
   font-weight: 850;
   letter-spacing: 0;
+  color: var(--text);
 }
 
 .page-heading p {
@@ -1926,6 +1927,15 @@ td strong {
     linear-gradient(90deg, rgba(110, 224, 181, 0.045) 1px, transparent 1px),
     linear-gradient(180deg, #141c18 0, var(--bg) 340px);
   background-size: 44px 44px, auto;
+}
+
+.app-shell[data-theme="dark"] .page-heading h2 {
+  color: #f7fbf8;
+  text-shadow: 0 1px 0 rgba(0, 0, 0, 0.32);
+}
+
+.app-shell[data-theme="dark"] .page-heading p {
+  color: #c8d5cd;
 }
 
 .app-shell[data-theme="dark"] .topbar,
