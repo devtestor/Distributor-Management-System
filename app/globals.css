@@ -1938,6 +1938,31 @@ td strong {
   color: #c8d5cd;
 }
 
+.app-shell[data-theme="dark"] .kpi-card strong,
+.app-shell[data-theme="dark"] .empties-copy h3,
+.app-shell[data-theme="dark"] .summary-strip strong,
+.app-shell[data-theme="dark"] .report-kpis span,
+.app-shell[data-theme="dark"] td,
+.app-shell[data-theme="dark"] td strong {
+  color: #f5fbf7;
+}
+
+.app-shell[data-theme="dark"] .priority-row b,
+.app-shell[data-theme="dark"] .feature-kicker {
+  color: #7ee0bd;
+}
+
+.app-shell[data-theme="dark"] .kpi-card p,
+.app-shell[data-theme="dark"] .summary-strip span,
+.app-shell[data-theme="dark"] td small,
+.app-shell[data-theme="dark"] .table-state,
+.app-shell[data-theme="dark"] .panel-header span,
+.app-shell[data-theme="dark"] .empties-copy p,
+.app-shell[data-theme="dark"] .empties-actions span,
+.app-shell[data-theme="dark"] .priority-row small {
+  color: #c5d2ca;
+}
+
 .app-shell[data-theme="dark"] .topbar,
 .app-shell[data-theme="dark"] .panel,
 .app-shell[data-theme="dark"] .kpi-card,
